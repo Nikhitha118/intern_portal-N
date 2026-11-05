@@ -1,0 +1,366 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── CSS variable theme system ─────────────────────────────────────────────── */
+:root, [data-theme="dark"] {
+  --page-bg:      #050816;
+  --sidebar-bg:   #070B1A;
+  --card-bg:      rgba(17,25,40,0.85);
+  --card-border:  rgba(255,255,255,0.08);
+  --text:         #ffffff;
+  --text-muted:   rgba(255,255,255,0.5);
+  --text-faint:   rgba(255,255,255,0.35);
+  --input-bg:     rgba(255,255,255,0.06);
+  --input-border: rgba(255,255,255,0.1);
+  --divider:      rgba(255,255,255,0.07);
+  --panel-bg:     #070B1A;
+  --row-hover:    rgba(255,255,255,0.02);
+
+  /* shadcn/radix tokens */
+  --background: #050816;
+  --foreground: #f5f5fa;
+  --card: #0B1023;
+  --card-foreground: #f5f5fa;
+  --primary: #7C3AED;
+  --primary-foreground: #ffffff;
+  --accent: #06b6d4;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --border: rgba(255,255,255,0.08);
+  --input: rgba(255,255,255,0.08);
+  --ring: #7C3AED;
+  --radius: 0.875rem;
+  --sidebar: #070B1A;
+}
+
+[data-theme="light"] {
+  --page-bg:      #f0f4f8;
+  --sidebar-bg:   #1e1b4b;
+  --card-bg:      rgba(255,255,255,0.95);
+  --card-border:  rgba(0,0,0,0.08);
+  --text:         #0f172a;
+  --text-muted:   rgba(15,23,42,0.6);
+  --text-faint:   rgba(15,23,42,0.4);
+  --input-bg:     rgba(0,0,0,0.05);
+  --input-border: rgba(0,0,0,0.12);
+  --divider:      rgba(0,0,0,0.07);
+  --panel-bg:     #f8fafc;
+  --row-hover:    rgba(124,58,237,0.05);
+
+  --background: #f0f4f8;
+  --foreground: #0f172a;
+}
+
+@theme inline {
+  --font-sans: 'Inter', -apple-system, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --radius-lg: var(--radius);
+}
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  html {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+  body {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: transparent;
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ─── VS Code style thin scrollbar ─────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(80,80,110,0.45) transparent;
+}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(80,80,110,0.45); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.65); }
+
+/* ─── Utility classes ───────────────────────────────────────────────────────── */
+.portal-root {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.portal-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.portal-content {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 100%;
+  padding: 24px 28px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .portal-content {
+    padding: 16px 14px;
+  }
+}
+
+.chart-stable-container {
+  width: 100%;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  backdrop-filter: blur(20px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #7C3AED, #06B6D4);
+  box-shadow: 0 0 20px rgba(124,58,237,0.4);
+  border-radius: 10px;
+  color: white;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-primary:hover {
+  box-shadow: 0 0 28px rgba(124,58,237,0.6);
+  transform: translateY(-1px);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.78);
+  backdrop-filter: blur(6px);
+}
+
+/* ─── Decorative gradients ──────────────────────────────────────────────────── */
+.bg-aurora {
+  background:
+    radial-gradient(60% 50% at 85% 20%, rgba(124,58,237,0.2) 0%, transparent 60%),
+    radial-gradient(50% 45% at 15% 85%, rgba(6,182,212,0.15) 0%, transparent 60%),
+    var(--page-bg);
+}
+
+/* ─── Light theme text overrides ────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Force all inline color:white to respect theme in light mode */
+[data-theme="light"] * {
+  /* Only override pure white text, not colored text */
+  --force-text: #0f172a;
+}
+
+/* Settings page specific light mode fixes */
+[data-theme="light"] .settings-content,
+[data-theme="light"] .settings-content * {
+  color: #0f172a !important;
+}
+
+/* Card backgrounds in light mode */
+[data-theme="light"] [style*="rgba(17,25,40"] {
+  background: rgba(255,255,255,0.9) !important;
+  border-color: rgba(0,0,0,0.08) !important;
+}
+
+[data-theme="light"] [style*="#070B1A"],
+[data-theme="light"] [style*="#0B1023"] {
+  background: #f8fafc !important;
+}
+
+/* Input fields in light mode */
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background: rgba(0,0,0,0.05) !important;
+  border-color: rgba(0,0,0,0.15) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: rgba(15,23,42,0.4) !important;
+}
+
+/* Table text in light mode */
+[data-theme="light"] table td,
+[data-theme="light"] table th {
+  color: #0f172a !important;
+}
+
+/* Sidebar stays dark in light mode */
+[data-theme="light"] aside {
+  background: #1e1b4b !important;
+}
+[data-theme="light"] aside * {
+  color: rgba(255,255,255,0.8) !important;
+}
+[data-theme="light"] aside button[style*="color: white"],
+[data-theme="light"] aside span {
+  color: rgba(255,255,255,0.8) !important;
+}
+
+/* ─── Fix native select dropdown white background ───────────────────────────── */
+select {
+  background-color: #0B1023 !important;
+  color: white !important;
+  border-color: rgba(255,255,255,0.15) !important;
+  color-scheme: dark;
+}
+select option {
+  background-color: #0B1023 !important;
+  color: white !important;
+}
+[data-theme="light"] select {
+  background-color: #f0f4f8 !important;
+  color: #0f172a !important;
+  color-scheme: light;
+}
+[data-theme="light"] select option {
+  background-color: #f0f4f8 !important;
+  color: #0f172a !important;
+}
+
+/* ─── AI typing dots animation ──────────────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1.2); }
+}
+
+@keyframes moveLeftToRight {
+  0% { transform: translateX(-35%); }
+  100% { transform: translateX(100%); }
+}
+
+.moving-row {
+  animation: moveLeftToRight 20s linear infinite;
+}
+
+@keyframes cardBlink {
+  0%, 100% { opacity: 0.95; box-shadow: 0 0 0 rgba(56,189,248,0); }
+  50% { opacity: 1; box-shadow: 0 0 14px rgba(56,189,248,0.28); }
+}
+
+/* ─── Stat card blink-in animation ──────────────────────────────────────────── */
+@keyframes blink-in {
+  0%   { opacity: 0.3; transform: scale(0.97); }
+  40%  { opacity: 1;   transform: scale(1.04); }
+  70%  { opacity: 0.7; transform: scale(1.01); }
+  100% { opacity: 1;   transform: scale(1);    }
+}
+
+/* ─── Card hover: come forward + glow effect (intern portal) ────────────────── */
+@keyframes card-shine {
+  0%   { box-shadow: 0 0 0 1px rgba(124,58,237,0), 0 0 0 rgba(124,58,237,0); }
+  40%  { box-shadow: 0 0 0 2px rgba(6,182,212,0.8), 0 0 24px rgba(6,182,212,0.5); }
+  70%  { box-shadow: 0 0 0 1px rgba(124,58,237,0.6), 0 0 16px rgba(124,58,237,0.4); }
+  100% { box-shadow: 0 0 0 1px rgba(124,58,237,0.45), 0 8px 28px rgba(124,58,237,0.25), 0 0 40px rgba(6,182,212,0.1); }
+}
+
+/* Only elements explicitly given .card-hover get the effect */
+.card-hover {
+  position: relative;
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px) scale(1.013);
+  border-color: rgba(124,58,237,0.55) !important;
+  z-index: 5;
+  animation: card-shine 0.35s ease forwards;
+}
+
+/* Table rows with explicit .row-hover class */
+tr.row-hover {
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+  cursor: pointer;
+}
+tr.row-hover:hover {
+  background: rgba(124,58,237,0.08) !important;
+  box-shadow: inset 0 0 0 1px rgba(124,58,237,0.3);
+}
+
+/* Inline-styled portal cards (mentor/evaluation/institution/admin) */
+/* Only target large cards — must have border AND padding AND a background color */
+@keyframes portal-blink {
+  0%   { box-shadow: 0 0 0 2px rgba(6,182,212,0.9),   0 0 20px rgba(6,182,212,0.6); }
+  40%  { box-shadow: 0 0 0 2px rgba(124,58,237,0.8),  0 0 28px rgba(124,58,237,0.5); }
+  100% { box-shadow: 0 0 0 1.5px rgba(124,58,237,0.45), 0 8px 28px rgba(124,58,237,0.2); }
+}
+
+/* Only target cards that have BOTH border-radius AND border AND padding — real cards */
+div[style*="border-radius: 14px"][style*="border:"][style*="padding"],
+div[style*="border-radius: 14px"][style*="border: 1px"] {
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease !important;
+}
+div[style*="border-radius: 14px"][style*="border:"][style*="padding"]:hover,
+div[style*="border-radius: 14px"][style*="border: 1px"]:hover {
+  transform: translateY(-3px) scale(1.012) !important;
+  animation: portal-blink 0.4s ease forwards !important;
+  z-index: 5;
+  position: relative;
+}
+
+/* Exclude small elements — avatars, badges, icon containers */
+div[style*="border-radius: 50%"]:hover,
+div[style*="border-radius: 999px"]:hover,
+div[style*="width: 40px"]:hover,
+div[style*="width: 32px"]:hover,
+div[style*="width: 28px"]:hover,
+div[style*="width: 24px"]:hover,
+div[style*="width: 8px"]:hover,
+span[style*="border-radius"]:hover,
+aside div:hover,
+aside:hover,
+.h-screen:hover,
+.w-screen:hover {
+  transform: none !important;
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+/* Table rows in portals — subtle highlight only, no transform */
+tr:not(.row-hover):hover {
+  background: rgba(124,58,237,0.05) !important;
+  cursor: pointer;
+}

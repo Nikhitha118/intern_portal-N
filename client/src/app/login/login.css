@@ -1,0 +1,323 @@
+:root {
+  --primary-gradient: linear-gradient(
+    135deg,
+    #ff6ec7,
+    #8b5cf6,
+    #3b82f6
+  );
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --text-dim: #d1d5db;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Inter", sans-serif;
+}
+
+.login-page {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  background-image: url("./image.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+/* Dark Backdrop Tint */
+.login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+/* BIGGER & WIDER Two-Column Master Box - UPSCALED */
+.login-container {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr; 
+  width: 100%;
+  max-width: 940px;  /* Balanced perfectly with the updated signup panel size */
+  min-height: 620px; /* Increased from 580px to maximize the screen presence */
+  background: rgba(15, 15, 25, 0.5);
+  backdrop-filter: blur(20px);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: fadeSlide 0.8s ease;
+}
+
+/* Slide up Animation */
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(35px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Left Panel: Spacious Form Box */
+.login-card {
+  padding: 44px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: rgba(20, 20, 30, 0.4);
+  position: relative; /* needed for back button */
+}
+
+/* Right Panel: Distinct Panel Styling */
+.info-side {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background-image: radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.18), transparent),
+                    url("./image.png");
+  background-size: cover;
+  background-position: right center;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.info-side::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(15, 15, 25, 0.65), rgba(15, 15, 25, 0.25));
+  z-index: 1;
+}
+
+.info-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 300px;
+}
+
+.info-content h2 {
+  color: white;
+  font-size: 28px; /* Slightly punchier font scale */
+  font-weight: 700;
+  margin-bottom: 14px;
+  letter-spacing: -0.5px;
+}
+
+.info-content p {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* Brand Logo Subheader Header */
+.logo-section {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.logo-section i {
+  font-size: 28px;
+  color: #60a5fa;
+  margin-bottom: 6px;
+}
+
+.logo-section h2 {
+  color: white;
+  font-size: 22px;
+}
+
+.logo-section p {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* Main Welcome Header Text */
+.welcome-text {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.welcome-text h1 {
+  color: white;
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.welcome-text p {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* Input Fields - Taller and Sweeter */
+.input-group {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 14px 46px; /* Enhanced vertical sizing */
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: 0.3s;
+}
+
+.input-group input:hover {
+  border-color: #60a5fa;
+}
+
+.input-group input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.input-group i:not(.password-toggle) {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #a1a1aa;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #a1a1aa;
+  font-size: 16px;
+  z-index: 10;
+  user-select: none;
+  pointer-events: all;
+}
+
+/* Submit Action Button styling */
+.login-btn {
+  width: 100%;
+  padding: 14px; /* Taller tactile size */
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.25s ease;
+  margin-top: 10px;
+}
+
+.login-btn:hover {
+  border-color: #8b5cf6;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.15));
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Error states */
+.error-input {
+  border: 1px solid #ef4444 !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+.error-text {
+  color: #f87171;
+  font-size: 11px;
+  margin-bottom: 10px;
+  margin-left: 4px;
+}
+
+/* Segment separators */
+.divider {
+  display: flex;
+  align-items: center;
+  color: #9ca3af;
+  font-size: 11px;
+  margin: 20px 0;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.divider span {
+  padding: 0 12px;
+}
+
+/* Social icons wrapper panel */
+.social-icons {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.social-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.social-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.signup-link {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.signup-link a {
+  margin-left: 4px;
+  color: #60a5fa;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* Viewport Responsiveness Adjustments */
+@media (max-width: 768px) {
+  .login-container {
+    grid-template-columns: 1fr;
+    max-width: 440px; /* Aligned mobile break width uniformly with signup */
+  }
+  .info-side {
+    display: none;
+  }
+  .login-card {
+    padding: 36px 32px;
+  }
+}
