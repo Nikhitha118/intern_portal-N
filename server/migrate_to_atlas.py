@@ -22,6 +22,12 @@ import sys
 import os
 import certifi
 from pymongo import MongoClient
+from dotenv import load_dotenv
+
+# Auto-load server/.env
+server_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+load_dotenv(server_env)
+load_dotenv()
 
 DATABASES = [
     "shared_db",
