@@ -119,7 +119,7 @@ function Signup() {
       const cleanFullName = formData.fullName.trim();
       const cleanEmail = formData.email.trim().toLowerCase();
 
-      const attemptFetch = (url, timeoutMs = 3000) => {
+      const attemptFetch = (url, timeoutMs = 15000) => {
         return new Promise(async (resolve, reject) => {
           const controller = new AbortController();
           const timer = setTimeout(() => {
@@ -149,12 +149,19 @@ function Signup() {
       };
 
       let res = null;
+      let timedOut = false;
       try {
-        res = await attemptFetch(`${apiUrl}/auth/register`, 3000);
-      } catch {
-        try {
-          res = await attemptFetch("http://localhost:5000/auth/register", 2000);
-        } catch { }
+        res = await attemptFetch(`${apiUrl}/auth/register`, 15000);
+      } catch (err) {
+        if (err?.message === "Timeout" || err?.name === "AbortError") {
+          timedOut = true;
+        }
+        // Local fallback attempt only if developing on localhost
+        if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && apiUrl !== "http://localhost:5000") {
+          try {
+            res = await attemptFetch("http://localhost:5000/auth/register", 3000);
+          } catch { }
+        }
       }
 
       let data = null;
@@ -162,13 +169,23 @@ function Signup() {
         try { data = await res.json(); } catch { }
       }
 
-      if (res && res.status === 409) {
-        setServerError("Email already registered. Please login.");
+      if (!res) {
+        setServerError(
+          timedOut
+            ? "Server took too long to respond. Render may still be waking up, please wait a moment and try again."
+            : "Unable to connect to backend server. Please verify network connection."
+        );
         setLoading(false);
         return;
       }
 
-      if (!res || !res.ok) {
+      if (res.status === 409) {
+        setServerError(data?.error || "Email already registered. Please login.");
+        setLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
         setServerError(data?.error || "Registration error. Please try again.");
         setLoading(false);
         return;

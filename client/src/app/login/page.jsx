@@ -108,7 +108,7 @@ function Login() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-      const attemptFetch = (url, timeoutMs = 2500) => {
+      const attemptFetch = (url, timeoutMs = 15000) => {
         return new Promise(async (resolve, reject) => {
           const controller = new AbortController();
           const timer = setTimeout(() => {
@@ -132,13 +132,19 @@ function Login() {
       };
 
       let res = null;
-      // Fast parallel attempt: try cloud backend with 2500ms limit, fallback to local immediately
+      let timedOut = false;
       try {
-        res = await attemptFetch(`${apiUrl}/auth/login`, 2500);
-      } catch {
-        try {
-          res = await attemptFetch("http://localhost:5000/auth/login", 2000);
-        } catch { }
+        res = await attemptFetch(`${apiUrl}/auth/login`, 15000);
+      } catch (err) {
+        if (err?.message === "Timeout" || err?.name === "AbortError") {
+          timedOut = true;
+        }
+        // Fallback to local ONLY if running on localhost
+        if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && apiUrl !== "http://localhost:5000") {
+          try {
+            res = await attemptFetch("http://localhost:5000/auth/login", 3000);
+          } catch { }
+        }
       }
 
       let data = null;
@@ -146,8 +152,18 @@ function Login() {
         try { data = await res.json(); } catch { }
       }
 
+      if (!res) {
+        setServerError(
+          timedOut
+            ? "Server took too long to respond. Render may still be waking up, please wait a moment and try again."
+            : "Unable to connect to backend server. Please verify network connection."
+        );
+        setLoading(false);
+        return;
+      }
+
       // Verify that backend returned an authorized response with a valid token
-      if (!res || !res.ok || !data?.token) {
+      if (!res.ok || !data?.token) {
         setServerError(data?.error || "Invalid credentials.");
         setLoading(false);
         return;

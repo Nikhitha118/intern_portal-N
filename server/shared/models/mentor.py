@@ -1,9 +1,19 @@
-from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
 load_dotenv()
-client = MongoClient(os.getenv("MONGO_URI","mongodb://localhost:27017/"), serverSelectionTimeoutMS=1000, connectTimeoutMS=1000)
-shared_db = client["shared_db"]
+
+try:
+    from config.database import shared_db, client
+except ImportError:
+    import certifi
+    from pymongo import MongoClient
+    uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+    kwargs = {"serverSelectionTimeoutMS": 5000, "connectTimeoutMS": 5000}
+    if uri.startswith("mongodb+srv://") or "ssl=true" in uri.lower() or "tls=true" in uri.lower():
+        kwargs["tlsCAFile"] = certifi.where()
+    client = MongoClient(uri, **kwargs)
+    shared_db = client["shared_db"]
+
 mentors = shared_db["mentors"]
 
 DEFAULT_MENTORS = [

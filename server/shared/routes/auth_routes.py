@@ -17,24 +17,28 @@ def register():
         return jsonify({"error":"fullName, email and password required"}), 400
     if role not in ["intern","mentor","admin","institution","evaluator"]:
         return jsonify({"error":"Invalid role. Choose: intern, mentor, admin, institution, evaluator"}), 400
-    if users.find_one({"email":{"$regex":f"^{re.escape(email)}$","$options":"i"}}):
-        return jsonify({"error":"Email already registered. Please login."}), 409
-    hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-    new = create_user(name, email, hashed, role)
-    new["createdAt"] = datetime.datetime.utcnow().isoformat()
-    result = users.insert_one(new)
-    uid = str(result.inserted_id)
-    return jsonify({
-        "message": "Registration successful. Please login.",
-        "user": {
-            "id": uid,
-            "fullName": name,
-            "name": name,
-            "email": email,
-            "role": role,
-            "photo": "/intern-avatar.jpg"
-        }
-    }), 201
+    try:
+        if users.find_one({"email":{"$regex":f"^{re.escape(email)}$","$options":"i"}}):
+            return jsonify({"error":"Email already registered. Please login."}), 409
+        hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+        new = create_user(name, email, hashed, role)
+        new["createdAt"] = datetime.datetime.utcnow().isoformat()
+        result = users.insert_one(new)
+        uid = str(result.inserted_id)
+        return jsonify({
+            "message": "Registration successful. Please login.",
+            "user": {
+                "id": uid,
+                "fullName": name,
+                "name": name,
+                "email": email,
+                "role": role,
+                "photo": "/intern-avatar.jpg"
+            }
+        }), 201
+    except Exception as e:
+        print(f"[AUTH REGISTER ERROR] {e}")
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -53,7 +57,8 @@ def login():
                 {"name": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}
             ]
         })
-    except Exception:
+    except Exception as e:
+        print(f"[AUTH LOGIN ERROR] Database query error: {e}")
         user = None
 
     if not user:
