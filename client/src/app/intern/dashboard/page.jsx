@@ -8,23 +8,23 @@ import {
   CheckCircle2, FileText, UserCheck, GraduationCap, Bot,
   Send, X, LogOut, UserPlus, Mic, Paperclip, ChevronDown,
   Camera, FolderOpen, Sparkles, Volume2, VolumeX, Copy,
-  Check, Square, Radio, Play, RotateCcw,
+  Check, Square, Radio, Play, RotateCcw, Clock, Award, TrendingUp,
 } from "lucide-react"
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
   Tooltip, CartesianGrid,
 } from "recharts"
 import { ClientChart } from "../../../components/ui/client-chart"
-import { getUser, getInternUser, resolveInternName, getInternPhoto, clearUserSession, DEFAULT_INTERN_AVATAR } from "../../../lib/api"
+import { getUser, getInternUser, resolveInternName, getInternPhoto, clearUserSession, DEFAULT_INTERN_AVATAR, fetchInternProgress, getStoredInternProgress } from "../../../lib/api"
 import InternSidebar from "../../../lib/internSidebar"
 import MarkdownRenderer from "../../../components/MarkdownRenderer"
 
 const GROQ_API_KEY = process.env.NEXT_PUBLIC_GROQ_API_KEY
 
 const PERF_DATA = {
-  Day:  [{ day:"9AM",value:3 },{ day:"11AM",value:5 },{ day:"1PM",value:7 },{ day:"3PM",value:6 },{ day:"5PM",value:8 }],
-  Week: [{ day:"Mon",value:4 },{ day:"Tue",value:6 },{ day:"Wed",value:7 },{ day:"Thu",value:8 },{ day:"Fri",value:9 },{ day:"Sat",value:8 },{ day:"Sun",value:7 }],
-  Month:[{ day:"W1",value:5 },{ day:"W2",value:6.5 },{ day:"W3",value:7.8 },{ day:"W4",value:8.9 }],
+  Day: [{ day: "9AM", value: 3 }, { day: "11AM", value: 5 }, { day: "1PM", value: 7 }, { day: "3PM", value: 6 }, { day: "5PM", value: 8 }],
+  Week: [{ day: "Mon", value: 4 }, { day: "Tue", value: 6 }, { day: "Wed", value: 7 }, { day: "Thu", value: 8 }, { day: "Fri", value: 9 }, { day: "Sat", value: 8 }, { day: "Sun", value: 7 }],
+  Month: [{ day: "W1", value: 5 }, { day: "W2", value: 6.5 }, { day: "W3", value: 7.8 }, { day: "W4", value: 8.9 }],
 }
 
 // Robust Markdown renderer backed by MarkdownRenderer component
@@ -46,7 +46,7 @@ export default function InternDashboard() {
       try {
         const u = getInternUser()
         return resolveInternName(u)
-      } catch {}
+      } catch { }
     }
     return ""
   })
@@ -59,11 +59,7 @@ export default function InternDashboard() {
   })
   const [isListening, setIsListening] = useState(false)
   const [showAICamera, setShowAICamera] = useState(false)
-  const [liveActivities, setLiveActivities] = useState([
-    { type:"task",       text:"Task submitted — Login API",    time:"2h ago",  color:"bg-green-500",  icon:"task",       path:"/intern/tasks" },
-    { type:"journal",    text:"Journal uploaded — May 20",     time:"5h ago",  color:"bg-blue-500",   icon:"journal",    path:"/intern/journals" },
-    { type:"attendance", text:"Attendance marked — Present",   time:"9h ago",  color:"bg-orange-500", icon:"attendance", path:"/intern/attendance" },
-  ])
+  const [liveActivities, setLiveActivities] = useState([])
   const [messages, setMessages] = useState([
     {
       id: "welcome-1",
@@ -88,6 +84,65 @@ export default function InternDashboard() {
 
   const [assignedRole, setAssignedRole] = useState(null)
   const [assessmentScore, setAssessmentScore] = useState(null)
+  const [summary, setSummary] = useState({
+    totalTasks: 0,
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    submittedTasks: 0,
+    completedTasks: 0,
+    rejectedTasks: 0,
+    overallProgress: 0,
+    attendance: { total: 0, present: 0, percentage: 0 },
+    recentActivities: [],
+    upcomingDeadlines: []
+  })
+
+  // Poll real user-specific progress from backend and local cache
+  const loadDashboardData = async () => {
+    try {
+      const u = getInternUser()
+      if (u && (u.id || u._id)) {
+        const uid = u.id || u._id
+        const cached = getStoredInternProgress(uid)
+        if (cached && typeof cached.overallProgress === "number") {
+          setSummary(cached)
+        }
+        const fresh = await fetchInternProgress(uid)
+        if (fresh) {
+          setSummary(fresh)
+        }
+      } else {
+        setSummary({
+          totalTasks: 0,
+          pendingTasks: 0,
+          inProgressTasks: 0,
+          submittedTasks: 0,
+          completedTasks: 0,
+          rejectedTasks: 0,
+          overallProgress: 0,
+          attendance: { total: 0, present: 0, percentage: 0 },
+          recentActivities: [],
+          upcomingDeadlines: []
+        })
+      }
+    } catch { }
+  }
+
+  useEffect(() => {
+    loadDashboardData()
+    const onProgressUpdated = (e) => {
+      if (e?.detail) setSummary(e.detail)
+      else loadDashboardData()
+    }
+    window.addEventListener("intern_progress_updated", onProgressUpdated)
+    window.addEventListener("storage", loadDashboardData)
+    const interval = setInterval(loadDashboardData, 4000)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("intern_progress_updated", onProgressUpdated)
+      window.removeEventListener("storage", loadDashboardData)
+    }
+  }, [])
 
   // Poll localStorage for real username and assigned role — use intern-specific key
   useEffect(() => {
@@ -117,10 +172,10 @@ export default function InternDashboard() {
         try {
           const res = JSON.parse(localStorage.getItem("intern_assessment_result") || "null")
           if (res) setAssessmentScore(res.score || res.totalScore)
-        } catch {}
+        } catch { }
         const currentPhoto = getInternPhoto()
         setUserPhoto(currentPhoto)
-      } catch {}
+      } catch { }
     }
     load()
     const id = setInterval(load, 1500)
@@ -167,7 +222,7 @@ export default function InternDashboard() {
             return [...mapped, ...defaults].slice(0, 5)
           })
         }
-      } catch {}
+      } catch { }
     }
     loadActivities()
     const id = setInterval(loadActivities, 2000)
@@ -175,15 +230,15 @@ export default function InternDashboard() {
   }, [])
 
   const menuItems = [
-    { icon: LayoutDashboard, title: "Dashboard",  path: "/intern/dashboard",  active: true },
-    { icon: ClipboardList,   title: "Tasks",       path: "/intern/tasks" },
-    { icon: BookOpenCheck,   title: "Attendance",  path: "/intern/attendance" },
-    { icon: FileText,        title: "Journals",    path: "/intern/journals" },
-    { icon: BarChart3,       title: "Analytics",   path: "/intern/analytics" },
-    { icon: Calendar,        title: "Calendar",    path: "/intern/calendar" },
-    { icon: MessageSquare,   title: "Messages",    path: "/intern/messages" },
-    { icon: User,            title: "Mentor",      path: "/intern/mentor" },
-    { icon: Settings,        title: "Settings",    path: "/intern/settings" },
+    { icon: LayoutDashboard, title: "Dashboard", path: "/intern/dashboard", active: true },
+    { icon: ClipboardList, title: "Tasks", path: "/intern/tasks" },
+    { icon: BookOpenCheck, title: "Attendance", path: "/intern/attendance" },
+    { icon: FileText, title: "Journals", path: "/intern/journals" },
+    { icon: BarChart3, title: "Analytics", path: "/intern/analytics" },
+    { icon: Calendar, title: "Calendar", path: "/intern/calendar" },
+    { icon: MessageSquare, title: "Messages", path: "/intern/messages" },
+    { icon: User, title: "Mentor", path: "/intern/mentor" },
+    { icon: Settings, title: "Settings", path: "/intern/settings" },
   ]
 
   // --- VOICE REPLY (TEXT-TO-SPEECH) ---
@@ -263,7 +318,7 @@ export default function InternDashboard() {
     stopSpeaking()
 
     if (isListening) {
-      try { recognitionRef.current?.stop() } catch {}
+      try { recognitionRef.current?.stop() } catch { }
       setIsListening(false)
       setShowAttachMenu(false)
       if (message.trim()) {
@@ -328,8 +383,8 @@ export default function InternDashboard() {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     setMessages(p => [
       ...p,
-      { id: `u-${Date.now()}`, role:"user", text:"[Photo captured from webcam]", timestamp: timeStr },
-      { id: `ai-${Date.now()}`, role:"ai", text:"Photo captured! Describe what's in it and I'll help you analyze or debug it.", timestamp: timeStr }
+      { id: `u-${Date.now()}`, role: "user", text: "[Photo captured from webcam]", timestamp: timeStr },
+      { id: `ai-${Date.now()}`, role: "ai", text: "Photo captured! Describe what's in it and I'll help you analyze or debug it.", timestamp: timeStr }
     ])
   }
 
@@ -513,87 +568,87 @@ export default function InternDashboard() {
   }
 
   return (
-    <div className="portal-root relative h-screen w-full max-w-full overflow-hidden text-white flex">
-      {/* Background Video (Matching Tasks Image 1) */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute top-0 left-0 w-full h-full object-cover z-0"
-      >
-        <source src="data:video/mp4;base64," type="video/mp4" />
-      </video>
-
-      {/* Dark Overlay (Matching Tasks Image 1) */}
-      <div className="absolute inset-0 bg-black/70 z-0"></div>
-
-      {/* Main Content Layout */}
+    <div className="portal-root relative h-screen w-full max-w-full overflow-hidden text-white flex bg-[#0b0f19]">
       <div className="relative z-10 flex w-full h-full min-w-0">
         {/* SIDEBAR (Matches Tasks and all other intern pages) */}
-        <InternSidebar active="Dashboard"/>
+        <InternSidebar active="Dashboard" />
 
         {/* MAIN DASHBOARD */}
-        <main className="portal-main flex-1 flex flex-col h-screen overflow-y-auto p-6 lg:p-8 gap-6 min-w-0">
-          {/* TOP */}
+        <main className="portal-main flex-1 flex flex-col h-screen overflow-y-auto p-6 lg:p-8 gap-6 min-w-0 bg-[#0b0f19]">
+          {/* TOP BAR */}
           <div className="flex flex-wrap items-center justify-between gap-4 flex-shrink-0">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                 {userName && userName.trim() ? `Welcome back, ${userName.trim()}!` : "Welcome back!"}
               </h1>
-              <p className="text-gray-400 text-sm mt-1">Here is your internship progress, active workflows, and analytics.</p>
+              <p className="text-gray-400 text-sm mt-1">Here is your real-time internship progress, active workflows, and analytics.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3.5 top-3 text-gray-400" size={16}/>
-                <input
-                  type="text"
-                  placeholder="Search overview..."
-                  className="w-48 sm:w-64 bg-[#0f172a] border border-[#1e293b] rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none text-white focus:border-cyan-500/50 transition placeholder-gray-500"
-                />
-              </div>
+            <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
               <button
                 onClick={() => setOpenAI(true)}
-                title="Open AI Mentor"
-                className="w-10 h-10 rounded-xl bg-[#0f172a] border border-cyan-500/40 text-cyan-400 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition shadow-md cursor-pointer"
+                title="Open AI Assistant"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium text-xs sm:text-sm hover:brightness-110 flex items-center gap-2 transition shadow-lg cursor-pointer"
               >
-                <Bot size={18} />
+                <Bot size={16} />
+                <span>AI Assistant</span>
               </button>
-              <button className="w-10 h-10 rounded-xl bg-[#0f172a] border border-[#1e293b] flex items-center justify-center relative hover:bg-[#111827] transition">
-                <Bell size={18} />
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-purple-600 text-[9px] font-bold flex items-center justify-center">3</span>
+              <button
+                onClick={() => router.push("/intern/tasks")}
+                title="View Tasks"
+                className="px-3.5 py-2 rounded-xl bg-[#0f172a] border border-[#1e293b] text-cyan-400 hover:text-white hover:border-cyan-500/40 font-medium text-xs sm:text-sm flex items-center gap-2 transition cursor-pointer"
+              >
+                <ClipboardList size={16} />
+                <span>Tasks</span>
               </button>
-              <button onClick={() => router.push("/intern/settings")} title="Profile Settings" className="w-10 h-10 rounded-xl overflow-hidden border border-purple-500/40 hover:border-cyan-400 transition flex-shrink-0 cursor-pointer shadow-md bg-[#0f172a]">
-                <img src={userPhoto || DEFAULT_INTERN_AVATAR} className="w-full h-full object-cover" alt="avatar"/>
+              <button
+                onClick={() => router.push("/intern/attendance")}
+                title="View Attendance"
+                className="px-3.5 py-2 rounded-xl bg-[#0f172a] border border-[#1e293b] text-purple-400 hover:text-white hover:border-purple-500/40 font-medium text-xs sm:text-sm flex items-center gap-2 transition cursor-pointer"
+              >
+                <UserCheck size={16} />
+                <span>Attendance</span>
+              </button>
+              <button
+                onClick={() => router.push("/intern/settings")}
+                title="Profile Settings"
+                className="w-10 h-10 rounded-xl overflow-hidden border border-purple-500/40 hover:border-cyan-400 transition flex-shrink-0 cursor-pointer shadow-md bg-[#0f172a]"
+              >
+                <img src={userPhoto || DEFAULT_INTERN_AVATAR} className="w-full h-full object-cover" alt="avatar" />
               </button>
             </div>
           </div>
 
-          {/* ROLE STATUS BANNER */}
-          <div className="p-5 rounded-2xl border transition-all duration-300 flex items-center justify-between gap-4 shadow-xl flex-wrap"
+          {/* SPECIALIZATION / ASSESSMENT BANNER */}
+          <div
+            className="p-5 rounded-2xl border transition-all duration-300 flex items-center justify-between gap-4 shadow-xl flex-wrap"
             style={{
               background: assignedRole
                 ? "linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(6, 182, 212, 0.16))"
                 : "linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(239, 68, 68, 0.16))",
               borderColor: assignedRole ? "rgba(99, 102, 241, 0.4)" : "rgba(245, 158, 11, 0.45)",
-            }}>
+            }}
+          >
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg"
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg"
                 style={{
                   background: assignedRole
                     ? "linear-gradient(135deg, #06B6D4, #6366F1)"
-                    : "linear-gradient(135deg, #f59e0b, #ef4444)"
-                }}>
+                    : "linear-gradient(135deg, #f59e0b, #ef4444)",
+                }}
+              >
                 <Sparkles size={24} className="text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-xs uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full"
+                  <span
+                    className="text-xs uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full"
                     style={{
                       background: assignedRole ? "rgba(34, 211, 238, 0.2)" : "rgba(245, 158, 11, 0.2)",
                       color: assignedRole ? "#22d3ee" : "#fbbf24",
-                      border: `1px solid ${assignedRole ? "rgba(34, 211, 238, 0.4)" : "rgba(245, 158, 11, 0.4)"}`
-                    }}>
+                      border: `1px solid ${assignedRole ? "rgba(34, 211, 238, 0.4)" : "rgba(245, 158, 11, 0.4)"}`,
+                    }}
+                  >
                     {assignedRole ? "Assigned Specialization" : "Skill Assessment Pending"}
                   </span>
                   {assessmentScore !== null && (
@@ -605,7 +660,7 @@ export default function InternDashboard() {
                 <p className="text-sm font-semibold text-white mt-1.5">
                   {assignedRole ? (
                     <>
-                      Role: <span className="text-cyan-300 font-bold">{assignedRole}</span> • Specialized curriculum activated
+                      Role: <span className="text-cyan-300 font-bold">{assignedRole}</span> • Tailored curriculum active
                     </>
                   ) : (
                     "Complete the 16-question MCQ assessment to unlock your role track and tailored internship tasks!"
@@ -619,104 +674,354 @@ export default function InternDashboard() {
               style={{
                 background: assignedRole
                   ? "linear-gradient(135deg, #06B6D4, #7C3AED)"
-                  : "linear-gradient(135deg, #f59e0b, #ef4444)"
-              }}>
-              {assignedRole ? "View Role Tasks →" : "Take MCQ Test →"}
+                  : "linear-gradient(135deg, #f59e0b, #ef4444)",
+              }}
+            >
+              {assignedRole ? "View Tasks Board →" : "Take MCQ Test →"}
             </button>
           </div>
 
-          {/* TOP CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-            <StatCard title="Assigned"    value="24"  trend="+12%" trendType="up" subtitle="from last week" color1="#3b82f6" color2="#06b6d4" onClick={()=>router.push("/intern/tasks")}/>
-            <StatCard title="Completed"   value="18"  trend="+18%" trendType="up" subtitle="from last week" color1="#10b981" color2="#14b8a6" onClick={()=>router.push("/intern/tasks")}/>
-            <StatCard title="Attendance"  value="92%" trend="+5%"  trendType="up" subtitle="from last week" color1="#ec4899" color2="#d946ef" onClick={()=>router.push("/intern/attendance")}/>
-            <StatCard title="Performance" value="8.9" trend="+8%"  trendType="up" subtitle="from last week" color1="#f97316" color2="#eab308" onClick={()=>router.push("/intern/analytics")}/>
+          {/* 6 SUMMARY CARDS */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
+            <SummaryCard
+              title="Total Tasks"
+              value={summary.totalTasks}
+              icon={<ClipboardList size={18} className="text-blue-400" />}
+              subtitle="Assigned tasks"
+              borderColor="hover:border-blue-500/50"
+              onClick={() => router.push("/intern/tasks")}
+            />
+            <SummaryCard
+              title="Pending Tasks"
+              value={summary.pendingTasks}
+              icon={<Clock size={18} className="text-amber-400" />}
+              subtitle="Awaiting start"
+              borderColor="hover:border-amber-500/50"
+              onClick={() => router.push("/intern/tasks")}
+            />
+            <SummaryCard
+              title="In Progress"
+              value={summary.inProgressTasks}
+              icon={<TrendingUp size={18} className="text-cyan-400" />}
+              subtitle="Active work"
+              borderColor="hover:border-cyan-500/50"
+              onClick={() => router.push("/intern/tasks")}
+            />
+            <SummaryCard
+              title="Completed"
+              value={summary.completedTasks}
+              icon={<CheckCircle2 size={18} className="text-emerald-400" />}
+              subtitle={`${summary.totalTasks > 0 ? Math.round((summary.completedTasks / summary.totalTasks) * 100) : 0}% completion`}
+              borderColor="hover:border-emerald-500/50"
+              onClick={() => router.push("/intern/tasks")}
+            />
+            <SummaryCard
+              title="Attendance"
+              value={`${summary.attendance?.percentage ?? 0}%`}
+              icon={<UserCheck size={18} className="text-purple-400" />}
+              subtitle={`${summary.attendance?.attended ?? summary.attendance?.present ?? 0} of ${summary.attendance?.total ?? 0} days`}
+              borderColor="hover:border-purple-500/50"
+              onClick={() => router.push("/intern/attendance")}
+            />
+            <SummaryCard
+              title="Overall Progress"
+              value={`${summary.overallProgress ?? 0}%`}
+              icon={<Award size={18} className="text-pink-400" />}
+              subtitle="Calculated live"
+              borderColor="hover:border-pink-500/50"
+              isProgressCard={true}
+              progressPct={summary.overallProgress ?? 0}
+              onClick={() => router.push("/intern/analytics")}
+            />
           </div>
 
-          {/* MIDDLE */}
+          {/* MIDDLE SECTION */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* PROGRESS */}
-            <div className="bg-[#0f172a] rounded-3xl border border-[#1e293b] p-6 card-hover shadow-xl flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white">Internship Progress</h2>
-                <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">28 Days Left</span>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
-                <div className="relative w-40 h-40 flex-shrink-0">
-                  <svg className="w-full h-full -rotate-90">
-                    <circle cx="80" cy="80" r="64" stroke="#1e293b" strokeWidth="12" fill="none"/>
-                    <circle cx="80" cy="80" r="64" stroke="url(#gradient)" strokeWidth="12" fill="none" strokeDasharray="402" strokeDashoffset="100" strokeLinecap="round"/>
-                    <defs><linearGradient id="gradient"><stop offset="0%" stopColor="#22d3ee"/><stop offset="100%" stopColor="#a855f7"/></linearGradient></defs>
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <h3 className="text-3xl font-extrabold text-white">75%</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">Completed</p>
+            {/* OVERALL PROGRESS CARD */}
+            <div className="bg-[#0f172a] rounded-2xl border border-[#1e293b] p-6 shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Award size={20} className="text-cyan-400" />
+                      Overall Internship Progress
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Calculated in real-time from completed curriculum tasks</p>
+                  </div>
+                  <span className={`text-xs px-3 py-1 rounded-full font-semibold border ${summary.overallProgress === 100
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                    : summary.overallProgress > 0
+                      ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30"
+                      : "bg-gray-800 text-gray-400 border-gray-700"
+                    }`}>
+                    {summary.overallProgress === 100 ? "Completed" : summary.overallProgress > 0 ? "In Progress" : "Not Started"}
+                  </span>
+                </div>
+
+                {/* Big Progress Display */}
+                <div className="py-2">
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">
+                      {summary.overallProgress}%
+                    </span>
+                    <span className="text-xs text-gray-400 font-medium">
+                      {summary.completedTasks} of {summary.totalTasks} Tasks Completed
+                    </span>
+                  </div>
+
+                  {/* Main Progress Bar */}
+                  <div className="w-full bg-[#1e293b] rounded-full h-3.5 overflow-hidden p-0.5 border border-[#334155]/40">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-600 transition-all duration-700 ease-out"
+                      style={{ width: `${Math.min(100, Math.max(0, summary.overallProgress))}%` }}
+                    />
+                  </div>
+
+                  {/* Task Status Breakdown */}
+                  <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-3">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+                        <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Completed
+                        </span>
+                        <span className="font-semibold text-white">{summary.completedTasks}</span>
+                      </div>
+                      <div className="w-full bg-[#1e293b] rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                          style={{ width: summary.totalTasks > 0 ? `${(summary.completedTasks / summary.totalTasks) * 100}%` : "0%" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-3">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+                        <span className="flex items-center gap-1.5 text-blue-400 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Submitted
+                        </span>
+                        <span className="font-semibold text-white">{summary.submittedTasks ?? 0}</span>
+                      </div>
+                      <div className="w-full bg-[#1e293b] rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-blue-400 rounded-full transition-all duration-500"
+                          style={{ width: summary.totalTasks > 0 ? `${((summary.submittedTasks ?? 0) / summary.totalTasks) * 100}%` : "0%" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-3">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+                        <span className="flex items-center gap-1.5 text-cyan-400 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" /> In Progress
+                        </span>
+                        <span className="font-semibold text-white">{summary.inProgressTasks}</span>
+                      </div>
+                      <div className="w-full bg-[#1e293b] rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-400 rounded-full transition-all duration-500"
+                          style={{ width: summary.totalTasks > 0 ? `${(summary.inProgressTasks / summary.totalTasks) * 100}%` : "0%" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-3">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1.5">
+                        <span className="flex items-center gap-1.5 text-amber-400 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Pending
+                        </span>
+                        <span className="font-semibold text-white">{summary.pendingTasks}</span>
+                      </div>
+                      <div className="w-full bg-[#1e293b] rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                          style={{ width: summary.totalTasks > 0 ? `${(summary.pendingTasks / summary.totalTasks) * 100}%` : "0%" }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-4 w-full sm:w-auto">
-                  <Legend color="bg-purple-500" title="Completed Tasks" value="75%"/>
-                  <Legend color="bg-cyan-400" title="In Progress" value="15%"/>
-                  <Legend color="bg-pink-500" title="Pending Reviews" value="10%"/>
-                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[#1e293b] mt-4 flex items-center justify-between">
+                <span className="text-xs text-gray-400">
+                  {summary.totalTasks === 0 ? "No tasks currently recorded." : `${summary.totalTasks - summary.completedTasks} tasks remaining in curriculum.`}
+                </span>
+                <button
+                  onClick={() => router.push("/intern/tasks")}
+                  className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition"
+                >
+                  Manage Tasks →
+                </button>
               </div>
             </div>
 
-            {/* CHART */}
-            <div className="bg-[#0f172a] rounded-3xl border border-[#1e293b] p-6 card-hover shadow-xl flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Performance Analytics</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Average weekly activity scores</p>
+            {/* TRACK & MILESTONES CARD */}
+            <div className="bg-[#0f172a] rounded-2xl border border-[#1e293b] p-6 shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Sparkles size={20} className="text-purple-400" />
+                      Specialization & Milestones
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Key requirements and tracking</p>
+                  </div>
+                  <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    Active Track
+                  </span>
                 </div>
-                <div className="flex bg-[#111827] border border-[#1e293b] rounded-xl p-1 gap-1">
-                  {["Day","Week","Month"].map(p=>(
-                    <button key={p} onClick={()=>setPerfPeriod(p)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${perfPeriod===p?"bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow":"text-gray-400 hover:text-white"}`}>{p}</button>
-                  ))}
+
+                <div className="space-y-3 mt-3">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111827] border border-[#1e293b]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                        <GraduationCap size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Specialization</p>
+                        <p className="text-sm font-semibold text-white">{assignedRole || "General Track (Assessment Pending)"}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => router.push(assignedRole ? "/intern/tasks" : "/intern/assessment")}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-cyan-300 transition"
+                    >
+                      {assignedRole ? "Curriculum" : "Take Test"}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111827] border border-[#1e293b]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <UserCheck size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Attendance Presence</p>
+                        <p className="text-sm font-semibold text-white">{summary.attendance?.percentage ?? 0}% Rate ({summary.attendance?.attended ?? summary.attendance?.present ?? 0} Days)</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => router.push("/intern/attendance")}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-emerald-300 transition"
+                    >
+                      Log Status
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111827] border border-[#1e293b]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                        <FileText size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Weekly Journals</p>
+                        <p className="text-sm font-semibold text-white">Mentor Review Workflow</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => router.push("/intern/journals")}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-purple-300 transition"
+                    >
+                      Journals
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="h-56 w-full min-w-0">
-                <ClientChart height={224} minHeight={200}>
-                  <AreaChart data={PERF_DATA[perfPeriod]}>
-                    <defs>
-                      <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="#1e293b"/>
-                    <XAxis dataKey="day" stroke="#94a3b8" fontSize={11}/>
-                    <YAxis stroke="#94a3b8" fontSize={11}/>
-                    <Tooltip contentStyle={{ backgroundColor:"#0f172a", border:"1px solid #1e293b", borderRadius:"12px" }} labelStyle={{ color:"#94a3b8" }} itemStyle={{ color:"#38bdf8" }} cursor={{ fill:"rgba(56,189,248,0.08)" }}/>
-                    <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#blue)"/>
-                  </AreaChart>
-                </ClientChart>
+
+              <div className="pt-4 border-t border-[#1e293b] mt-4 flex items-center justify-between">
+                <span className="text-xs text-gray-400">Need instant mentor help?</span>
+                <button
+                  onClick={() => setOpenAI(true)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-500 to-purple-600 text-white hover:brightness-110 transition shadow flex items-center gap-1.5"
+                >
+                  <Bot size={14} /> Open AI Mentor
+                </button>
               </div>
             </div>
           </div>
 
-          {/* BOTTOM */}
+          {/* BOTTOM SECTION */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
-            <div className="bg-[#0f172a] rounded-3xl border border-[#1e293b] p-6 card-hover shadow-xl">
-              <h2 className="text-lg font-bold text-white mb-4">Recent Activities</h2>
-              <div className="space-y-3">
-                {liveActivities.slice(0,4).map((a,i) => {
-                  const iconEl = a.type==="attendance"||a.type==="checkout"
-                    ? <UserCheck size={16}/>
-                    : a.type==="task" ? <CheckCircle2 size={16}/>
-                    : <FileText size={16}/>
-                  return (
-                    <ActivityItem key={i} icon={iconEl} title={a.text} time={a.time} color={a.color} onClick={()=>router.push(a.path||"/intern/attendance")}/>
-                  )
-                })}
+            {/* RECENT ACTIVITIES */}
+            <div className="bg-[#0f172a] rounded-2xl border border-[#1e293b] p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Clock size={18} className="text-cyan-400" />
+                  Recent Activities
+                </h2>
+                <button
+                  onClick={() => router.push("/intern/attendance")}
+                  className="text-xs font-medium text-cyan-400 hover:text-cyan-300 transition"
+                >
+                  View Log →
+                </button>
               </div>
+
+              {((summary.recentActivities && summary.recentActivities.length > 0) || (liveActivities && liveActivities.length > 0)) ? (
+                <div className="space-y-3">
+                  {[...(summary.recentActivities || []), ...(liveActivities || [])].slice(0, 4).map((a, i) => {
+                    const iconEl = a.type === "attendance" || a.type === "checkout"
+                      ? <UserCheck size={16} />
+                      : a.type === "task" ? <CheckCircle2 size={16} />
+                        : <FileText size={16} />
+                    return (
+                      <ActivityItem
+                        key={i}
+                        icon={iconEl}
+                        title={a.title || a.text}
+                        time={a.time || "Recently"}
+                        color={a.color || "bg-cyan-500"}
+                        onClick={() => router.push(a.path || "/intern/tasks")}
+                      />
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 px-4 rounded-xl border border-dashed border-[#1e293b] bg-[#111827]/50">
+                  <Clock size={32} className="mx-auto text-gray-600 mb-2" />
+                  <p className="text-sm font-semibold text-gray-300">No recent activities recorded</p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                    Start by marking today's attendance or completing a task to see your activity timeline here.
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="bg-[#0f172a] rounded-3xl border border-[#1e293b] p-6 card-hover shadow-xl">
-              <h2 className="text-lg font-bold text-white mb-4">Upcoming Deadlines</h2>
-              <div className="space-y-3">
-                <DeadlineItem title="UI Case Study" days="2 Days" onClick={()=>router.push("/intern/tasks")}/>
-                <DeadlineItem title="API Integration" days="4 Days" onClick={()=>router.push("/intern/tasks")}/>
-                <DeadlineItem title="Journal Submit" days="7 Days" onClick={()=>router.push("/intern/journals")}/>
+
+            {/* UPCOMING DEADLINES */}
+            <div className="bg-[#0f172a] rounded-2xl border border-[#1e293b] p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Calendar size={18} className="text-purple-400" />
+                  Upcoming Deadlines
+                </h2>
+                <button
+                  onClick={() => router.push("/intern/tasks")}
+                  className="text-xs font-medium text-purple-400 hover:text-purple-300 transition"
+                >
+                  All Tasks →
+                </button>
               </div>
+
+              {summary.upcomingDeadlines && summary.upcomingDeadlines.length > 0 ? (
+                <div className="space-y-3">
+                  {summary.upcomingDeadlines.slice(0, 4).map((d, i) => (
+                    <DeadlineItem
+                      key={i}
+                      title={d.title}
+                      days={d.dueDate || d.days || "Pending"}
+                      onClick={() => router.push("/intern/tasks")}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 px-4 rounded-xl border border-dashed border-[#1e293b] bg-[#111827]/50">
+                  <CheckCircle2 size={32} className="mx-auto text-emerald-500/50 mb-2" />
+                  <p className="text-sm font-semibold text-gray-300">No overdue or pending deadlines</p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                    All your assigned assignments are on track. Check your task board for new assignments.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -734,308 +1039,302 @@ export default function InternDashboard() {
           />
           <div className="fixed top-0 right-0 h-screen z-50 border-l border-[#1e293b] flex flex-col shadow-2xl backdrop-blur-2xl animate-in slide-in-from-right duration-300"
             style={{ width: `${Math.max(aiWidth, 32)}%`, minWidth: "380px", maxWidth: "620px", backgroundImage: "url('/dashboard.png')", backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#020617" }}>
-          {/* DRAG */}
-          <div onMouseDown={startDragging} className="absolute left-0 top-0 w-1.5 h-full bg-[#1e293b] hover:bg-cyan-500 cursor-col-resize z-20"/>
-          {/* OVERLAY */}
-          <div className="absolute inset-0 bg-[#020617]/85 pointer-events-none"/>
-          {/* HEADER */}
-          <div className="relative z-10 h-14 border-b border-[#1e293b] flex items-center justify-between px-3.5 bg-[#020617]/80 backdrop-blur-md">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-900/30">
-                <Bot size={18} className="text-white"/>
+            {/* DRAG */}
+            <div onMouseDown={startDragging} className="absolute left-0 top-0 w-1.5 h-full bg-[#1e293b] hover:bg-cyan-500 cursor-col-resize z-20" />
+            {/* OVERLAY */}
+            <div className="absolute inset-0 bg-[#020617]/85 pointer-events-none" />
+            {/* HEADER */}
+            <div className="relative z-10 h-14 border-b border-[#1e293b] flex items-center justify-between px-3.5 bg-[#020617]/80 backdrop-blur-md">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-900/30">
+                  <Bot size={18} className="text-white" />
+                </div>
+                <div>
+                  <h1 className="text-sm font-bold flex items-center gap-1.5 leading-none">
+                    Internship Assistant
+                    <span className="text-[10px] font-normal text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30">
+                      AI Mentor
+                    </span>
+                  </h1>
+                  <p className="text-[10px] text-gray-400 flex items-center gap-1.5 mt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse" />
+                    Voice & Step-by-Step Active
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-sm font-bold flex items-center gap-1.5 leading-none">
-                  Internship Assistant
-                  <span className="text-[10px] font-normal text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30">
-                    AI Mentor
-                  </span>
-                </h1>
-                <p className="text-[10px] text-gray-400 flex items-center gap-1.5 mt-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse"/>
-                  Voice & Step-by-Step Active
-                </p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-1.5">
-              {/* Voice Reply Toggle Switch */}
-              <button
-                type="button"
-                onClick={toggleVoiceReply}
-                title={voiceReplyEnabled ? "Voice Reply is ON (Click to mute)" : "Voice Reply is OFF (Click to enable)"}
-                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium flex items-center gap-1.5 border transition cursor-pointer ${
-                  voiceReplyEnabled
+              <div className="flex items-center gap-1.5">
+                {/* Voice Reply Toggle Switch */}
+                <button
+                  type="button"
+                  onClick={toggleVoiceReply}
+                  title={voiceReplyEnabled ? "Voice Reply is ON (Click to mute)" : "Voice Reply is OFF (Click to enable)"}
+                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium flex items-center gap-1.5 border transition cursor-pointer ${voiceReplyEnabled
                     ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/25 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
                     : "bg-[#111827] text-gray-400 border-[#1e293b] hover:text-white"
-                }`}
-              >
-                {voiceReplyEnabled ? (
-                  <>
-                    <Volume2 size={13} className="text-cyan-400 animate-pulse" />
-                    <span>Voice: ON</span>
-                  </>
-                ) : (
-                  <>
-                    <VolumeX size={13} className="text-gray-400" />
-                    <span>Voice: OFF</span>
-                  </>
-                )}
-              </button>
-
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  stopSpeaking()
-                  setOpenAI(false)
-                }}
-                title="Close AI Assistant"
-                className="w-8 h-8 rounded-xl bg-[#111827] border border-[#1e293b] flex items-center justify-center hover:bg-red-900/30 text-gray-400 hover:text-white transition"
-              >
-                <X size={15}/>
-              </button>
-            </div>
-          </div>
-
-          {/* CHAT MESSAGES DISPLAYED CLEARLY ONE AFTER ONE */}
-          <div className="relative z-10 flex-1 overflow-y-auto p-3.5 space-y-4 scroll-smooth">
-            {messages.map((msg, index) => {
-              const isUser = msg.role === "user"
-              return (
-                <div
-                  key={msg.id || index}
-                  className={`flex flex-col ${isUser ? "items-end ml-auto max-w-[85%]" : "items-start mr-auto max-w-[96%]"} gap-1`}
-                >
-                  {/* Meta header (Sender name, avatar, timestamp, audio controls) */}
-                  <div className={`flex items-center gap-1.5 text-[11px] px-1 ${isUser ? "text-gray-400 justify-end" : "text-gray-400 justify-between w-full"}`}>
-                    {!isUser ? (
-                      <>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-md bg-gradient-to-r from-cyan-500 to-purple-600 flex items-center justify-center text-white">
-                            <Bot size={10} />
-                          </div>
-                          <span className="font-semibold text-cyan-300">Internship Assistant</span>
-                          <span className="text-gray-500">• {msg.timestamp || "Just now"}</span>
-                        </div>
-                        {/* Audio Speak & Copy Controls */}
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => speakText(msg.text, index)}
-                            title={speakingIndex === index ? "Stop speaking" : "Listen (Voice Reply)"}
-                            className={`px-1.5 py-0.5 rounded-md text-[10px] flex items-center gap-1 border transition cursor-pointer ${
-                              speakingIndex === index
-                                ? "bg-red-500/20 text-red-400 border-red-500/40 animate-pulse"
-                                : "bg-[#111827]/80 hover:bg-[#1e293b] text-gray-400 hover:text-cyan-300 border-[#1e293b]"
-                            }`}
-                          >
-                            {speakingIndex === index ? (
-                              <>
-                                <Square size={10} className="fill-red-400 text-red-400" />
-                                <span>Stop</span>
-                              </>
-                            ) : (
-                              <>
-                                <Volume2 size={11} className="text-cyan-400" />
-                                <span>Voice</span>
-                              </>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => copyMessageText(msg.text, index)}
-                            title="Copy message"
-                            className="p-1 rounded-md bg-[#111827]/80 hover:bg-[#1e293b] text-gray-400 hover:text-cyan-300 border border-[#1e293b] transition cursor-pointer"
-                          >
-                            {copiedIndex === index ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-gray-400">{msg.timestamp || "Just now"}</span>
-                        <span className="font-medium text-purple-300">{userName || "You"}</span>
-                        <img
-                          src={userPhoto || DEFAULT_INTERN_AVATAR}
-                          alt="User"
-                          className="w-4 h-4 rounded-full object-cover border border-purple-400/50"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Message Bubble with 14-16px readable typography */}
-                  <div
-                    className={`p-4 sm:p-4.5 rounded-2xl text-[14px] sm:text-[15px] leading-relaxed shadow-lg ${
-                      isUser
-                        ? "rounded-tr-sm bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 text-white shadow-purple-900/30 break-words"
-                        : "rounded-tl-sm bg-[#080e1a]/95 backdrop-blur-md border border-cyan-500/25 text-slate-100 shadow-cyan-950/40 w-full"
                     }`}
-                  >
-                    {isUser ? (
-                      <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                    ) : (
-                      <MarkdownRenderer text={msg.text} />
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+                >
+                  {voiceReplyEnabled ? (
+                    <>
+                      <Volume2 size={13} className="text-cyan-400 animate-pulse" />
+                      <span>Voice: ON</span>
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX size={13} className="text-gray-400" />
+                      <span>Voice: OFF</span>
+                    </>
+                  )}
+                </button>
 
-            {/* Loading typing indicator */}
-            {loading && (
-              <div className="flex flex-col items-start mr-auto max-w-[85%] gap-1">
-                <div className="flex items-center gap-1.5 text-[10px] text-gray-400 px-1">
-                  <div className="w-4 h-4 rounded-md bg-gradient-to-r from-cyan-500 to-purple-600 flex items-center justify-center text-white">
-                    <Bot size={10} />
-                  </div>
-                  <span className="font-semibold text-cyan-300">Internship Assistant</span>
-                  <span className="text-cyan-400 animate-pulse">is thinking & replying…</span>
-                </div>
-                <div className="p-3.5 rounded-2xl rounded-tl-sm bg-[#080e1a]/95 backdrop-blur-md border border-cyan-500/25 flex items-center gap-2">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-2 h-2 rounded-full bg-cyan-400"
-                      style={{ animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }}
-                    />
-                  ))}
-                  <span className="text-[12px] text-gray-300 ml-1">Formulating step-by-step response…</span>
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef}/>
-          </div>
-
-          {/* INPUT BAR WITH VOICE CHAT & ATTACHMENTS */}
-          <div className="relative z-10 border-t border-[#1e293b] p-2.5 bg-[#020617]/85 backdrop-blur-md">
-            {/* Listening Wave Banner when Speech-to-Text active */}
-            {isListening && (
-              <div className="mb-2 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-950/90 to-purple-950/90 border border-cyan-500/40 flex items-center justify-between shadow-lg">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                  <span className="text-xs text-cyan-200 font-medium">Listening to your voice... Speak now!</span>
-                </div>
+                {/* Close Button */}
                 <button
                   type="button"
                   onClick={() => {
-                    recognitionRef.current?.stop()
-                    setIsListening(false)
-                    if (message.trim()) sendMessage()
+                    stopSpeaking()
+                    setOpenAI(false)
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-bold transition cursor-pointer"
+                  title="Close AI Assistant"
+                  className="w-8 h-8 rounded-xl bg-[#111827] border border-[#1e293b] flex items-center justify-center hover:bg-red-900/30 text-gray-400 hover:text-white transition"
                 >
-                  Done & Send
+                  <X size={15} />
                 </button>
               </div>
-            )}
+            </div>
 
-            <div className={`bg-[#111827]/90 rounded-2xl flex items-center gap-2 px-2.5 py-2 border transition ${
-              isListening ? "border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.35)]" : "border-[#1e293b] focus-within:border-cyan-500/50"
-            }`}>
-              {/* Attachment menu */}
-              <div className="relative">
+            {/* CHAT MESSAGES DISPLAYED CLEARLY ONE AFTER ONE */}
+            <div className="relative z-10 flex-1 overflow-y-auto p-3.5 space-y-4 scroll-smooth">
+              {messages.map((msg, index) => {
+                const isUser = msg.role === "user"
+                return (
+                  <div
+                    key={msg.id || index}
+                    className={`flex flex-col ${isUser ? "items-end ml-auto max-w-[85%]" : "items-start mr-auto max-w-[96%]"} gap-1`}
+                  >
+                    {/* Meta header (Sender name, avatar, timestamp, audio controls) */}
+                    <div className={`flex items-center gap-1.5 text-[11px] px-1 ${isUser ? "text-gray-400 justify-end" : "text-gray-400 justify-between w-full"}`}>
+                      {!isUser ? (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-4 h-4 rounded-md bg-gradient-to-r from-cyan-500 to-purple-600 flex items-center justify-center text-white">
+                              <Bot size={10} />
+                            </div>
+                            <span className="font-semibold text-cyan-300">Internship Assistant</span>
+                            <span className="text-gray-500">• {msg.timestamp || "Just now"}</span>
+                          </div>
+                          {/* Audio Speak & Copy Controls */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => speakText(msg.text, index)}
+                              title={speakingIndex === index ? "Stop speaking" : "Listen (Voice Reply)"}
+                              className={`px-1.5 py-0.5 rounded-md text-[10px] flex items-center gap-1 border transition cursor-pointer ${speakingIndex === index
+                                ? "bg-red-500/20 text-red-400 border-red-500/40 animate-pulse"
+                                : "bg-[#111827]/80 hover:bg-[#1e293b] text-gray-400 hover:text-cyan-300 border-[#1e293b]"
+                                }`}
+                            >
+                              {speakingIndex === index ? (
+                                <>
+                                  <Square size={10} className="fill-red-400 text-red-400" />
+                                  <span>Stop</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 size={11} className="text-cyan-400" />
+                                  <span>Voice</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => copyMessageText(msg.text, index)}
+                              title="Copy message"
+                              className="p-1 rounded-md bg-[#111827]/80 hover:bg-[#1e293b] text-gray-400 hover:text-cyan-300 border border-[#1e293b] transition cursor-pointer"
+                            >
+                              {copiedIndex === index ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-400">{msg.timestamp || "Just now"}</span>
+                          <span className="font-medium text-purple-300">{userName || "You"}</span>
+                          <img
+                            src={userPhoto || DEFAULT_INTERN_AVATAR}
+                            alt="User"
+                            className="w-4 h-4 rounded-full object-cover border border-purple-400/50"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Message Bubble with 14-16px readable typography */}
+                    <div
+                      className={`p-4 sm:p-4.5 rounded-2xl text-[14px] sm:text-[15px] leading-relaxed shadow-lg ${isUser
+                        ? "rounded-tr-sm bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 text-white shadow-purple-900/30 break-words"
+                        : "rounded-tl-sm bg-[#080e1a]/95 backdrop-blur-md border border-cyan-500/25 text-slate-100 shadow-cyan-950/40 w-full"
+                        }`}
+                    >
+                      {isUser ? (
+                        <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                      ) : (
+                        <MarkdownRenderer text={msg.text} />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Loading typing indicator */}
+              {loading && (
+                <div className="flex flex-col items-start mr-auto max-w-[85%] gap-1">
+                  <div className="flex items-center gap-1.5 text-[10px] text-gray-400 px-1">
+                    <div className="w-4 h-4 rounded-md bg-gradient-to-r from-cyan-500 to-purple-600 flex items-center justify-center text-white">
+                      <Bot size={10} />
+                    </div>
+                    <span className="font-semibold text-cyan-300">Internship Assistant</span>
+                    <span className="text-cyan-400 animate-pulse">is thinking & replying…</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl rounded-tl-sm bg-[#080e1a]/95 backdrop-blur-md border border-cyan-500/25 flex items-center gap-2">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="w-2 h-2 rounded-full bg-cyan-400"
+                        style={{ animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }}
+                      />
+                    ))}
+                    <span className="text-[12px] text-gray-300 ml-1">Formulating step-by-step response…</span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* INPUT BAR WITH VOICE CHAT & ATTACHMENTS */}
+            <div className="relative z-10 border-t border-[#1e293b] p-2.5 bg-[#020617]/85 backdrop-blur-md">
+              {/* Listening Wave Banner when Speech-to-Text active */}
+              {isListening && (
+                <div className="mb-2 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-950/90 to-purple-950/90 border border-cyan-500/40 flex items-center justify-between shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                    <span className="text-xs text-cyan-200 font-medium">Listening to your voice... Speak now!</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      recognitionRef.current?.stop()
+                      setIsListening(false)
+                      if (message.trim()) sendMessage()
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-bold transition cursor-pointer"
+                  >
+                    Done & Send
+                  </button>
+                </div>
+              )}
+
+              <div className={`bg-[#111827]/90 rounded-2xl flex items-center gap-2 px-2.5 py-2 border transition ${isListening ? "border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.35)]" : "border-[#1e293b] focus-within:border-cyan-500/50"
+                }`}>
+                {/* Attachment menu */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowAttachMenu(!showAttachMenu)}
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${showAttachMenu ? "bg-purple-600/40" : "bg-[#1e293b] hover:bg-purple-900/30 text-gray-400 hover:text-white"}`}
+                  >
+                    <Paperclip size={15} />
+                  </button>
+                  {showAttachMenu && (
+                    <div className="absolute bottom-11 left-0 bg-[#0f172a] border border-[#1e293b] rounded-2xl overflow-hidden z-50 w-44 shadow-2xl backdrop-blur-lg">
+                      <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-[#1e293b] text-xs border-b border-[#1e293b] transition">
+                        <FolderOpen size={13} className="text-cyan-400" /> Open File Explorer
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          style={{ display: "none" }}
+                          onChange={e => {
+                            if (e.target.files[0]) {
+                              const fname = e.target.files[0].name
+                              const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              setMessages(p => [
+                                ...p,
+                                { id: `u-${Date.now()}`, role: "user", text: `📎 Attached file: ${fname}`, timestamp: timeStr },
+                                { id: `ai-${Date.now()}`, role: "ai", text: `I see you attached **${fname}**. Paste its code or description here and I'll analyze it!`, timestamp: timeStr }
+                              ])
+                              setShowAttachMenu(false)
+                            }
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={openAICamera}
+                        className="flex items-center gap-2 px-3 py-2.5 hover:bg-[#1e293b] text-xs w-full text-left border-b border-[#1e293b] transition cursor-pointer"
+                      >
+                        <Camera size={13} className="text-pink-400" /> Camera (Webcam)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startMic}
+                        className={`flex items-center gap-2 px-3 py-2.5 hover:bg-[#1e293b] text-xs w-full text-left transition cursor-pointer ${isListening ? "text-green-400 font-medium" : "text-white"}`}
+                      >
+                        <Mic size={13} className={isListening ? "text-green-400" : "text-yellow-400"} /> {isListening ? "🔴 Stop & Send" : "Voice Chat (Mic)"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Text Input */}
+                <input
+                  type="text"
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      sendMessage()
+                    }
+                  }}
+                  placeholder={isListening ? "Listening to voice input…" : "Ask anything (e.g. 'show performance', 'how to build API')…"}
+                  className="flex-1 bg-transparent outline-none text-[13px] sm:text-[14px] text-white placeholder-gray-500"
+                />
+
+                {/* Mic / Voice Chat shortcut button */}
                 <button
                   type="button"
-                  onClick={()=>setShowAttachMenu(!showAttachMenu)}
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${showAttachMenu?"bg-purple-600/40":"bg-[#1e293b] hover:bg-purple-900/30 text-gray-400 hover:text-white"}`}
-                >
-                  <Paperclip size={15}/>
-                </button>
-                {showAttachMenu && (
-                  <div className="absolute bottom-11 left-0 bg-[#0f172a] border border-[#1e293b] rounded-2xl overflow-hidden z-50 w-44 shadow-2xl backdrop-blur-lg">
-                    <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-[#1e293b] text-xs border-b border-[#1e293b] transition">
-                      <FolderOpen size={13} className="text-cyan-400"/> Open File Explorer
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        style={{ display:"none" }}
-                        onChange={e=>{
-                          if(e.target.files[0]){
-                            const fname = e.target.files[0].name
-                            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                            setMessages(p=>[
-                              ...p,
-                              { id:`u-${Date.now()}`, role:"user", text:`📎 Attached file: ${fname}`, timestamp: timeStr },
-                              { id:`ai-${Date.now()}`, role:"ai", text:`I see you attached **${fname}**. Paste its code or description here and I'll analyze it!`, timestamp: timeStr }
-                            ])
-                            setShowAttachMenu(false)
-                          }
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={openAICamera}
-                      className="flex items-center gap-2 px-3 py-2.5 hover:bg-[#1e293b] text-xs w-full text-left border-b border-[#1e293b] transition cursor-pointer"
-                    >
-                      <Camera size={13} className="text-pink-400"/> Camera (Webcam)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={startMic}
-                      className={`flex items-center gap-2 px-3 py-2.5 hover:bg-[#1e293b] text-xs w-full text-left transition cursor-pointer ${isListening?"text-green-400 font-medium":"text-white"}`}
-                    >
-                      <Mic size={13} className={isListening?"text-green-400":"text-yellow-400"}/> {isListening?"🔴 Stop & Send":"Voice Chat (Mic)"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Text Input */}
-              <input
-                type="text"
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault()
-                    sendMessage()
-                  }
-                }}
-                placeholder={isListening ? "Listening to voice input…" : "Ask anything (e.g. 'show performance', 'how to build API')…"}
-                className="flex-1 bg-transparent outline-none text-[13px] sm:text-[14px] text-white placeholder-gray-500"
-              />
-
-              {/* Mic / Voice Chat shortcut button */}
-              <button
-                type="button"
-                onClick={startMic}
-                title={isListening ? "Stop listening and send" : "Voice Chat (Speak into microphone)"}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${
-                  isListening
+                  onClick={startMic}
+                  title={isListening ? "Stop listening and send" : "Voice Chat (Speak into microphone)"}
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer ${isListening
                     ? "bg-red-500/30 border border-red-500/60 text-red-400 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"
                     : "bg-[#1e293b] hover:bg-purple-900/40 text-gray-400 hover:text-cyan-400"
-                }`}
-              >
-                <Mic size={15} className={isListening ? "text-red-400" : "text-gray-400 hover:text-cyan-400"}/>
-              </button>
+                    }`}
+                >
+                  <Mic size={15} className={isListening ? "text-red-400" : "text-gray-400 hover:text-cyan-400"} />
+                </button>
 
-              {/* Send Button */}
-              <button
-                type="button"
-                onClick={() => sendMessage()}
-                disabled={loading || !message.trim()}
-                title="Send message"
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition ${
-                  loading || !message.trim()
+                {/* Send Button */}
+                <button
+                  type="button"
+                  onClick={() => sendMessage()}
+                  disabled={loading || !message.trim()}
+                  title="Send message"
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition ${loading || !message.trim()
                     ? "bg-gray-800 text-gray-500 cursor-not-allowed"
                     : "bg-gradient-to-r from-cyan-500 to-purple-600 text-white hover:scale-105 active:scale-95 shadow-md shadow-purple-900/30 cursor-pointer"
-                }`}
-              >
-                <Send size={15}/>
-              </button>
-            </div>
+                    }`}
+                >
+                  <Send size={15} />
+                </button>
+              </div>
 
-            <div className="flex items-center justify-between text-[10px] text-gray-400 mt-2 px-1">
-              <span>Enter to send • 📎 attach photo/file • 🎤 voice chat</span>
-              <span className="text-cyan-400 flex items-center gap-1 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"/>
-                Free AI Online
-              </span>
+              <div className="flex items-center justify-between text-[10px] text-gray-400 mt-2 px-1">
+                <span>Enter to send • 📎 attach photo/file • 🎤 voice chat</span>
+                <span className="text-cyan-400 flex items-center gap-1 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  Free AI Online
+                </span>
+              </div>
             </div>
-          </div>
           </div>
         </>
       )}
@@ -1069,13 +1368,13 @@ export default function InternDashboard() {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-6 w-[440px] flex flex-col items-center gap-4">
             <div className="flex justify-between items-center w-full">
-              <span className="text-sm font-bold flex items-center gap-2"><Camera size={14}/> Camera</span>
-              <button onClick={()=>{ aiStreamRef.current?.getTracks().forEach(t=>t.stop()); setShowAICamera(false) }}><X size={14} className="text-gray-400"/></button>
+              <span className="text-sm font-bold flex items-center gap-2"><Camera size={14} /> Camera</span>
+              <button onClick={() => { aiStreamRef.current?.getTracks().forEach(t => t.stop()); setShowAICamera(false) }}><X size={14} className="text-gray-400" /></button>
             </div>
-            <video ref={aiVideoRef} autoPlay playsInline muted className="w-full rounded-xl bg-black max-h-64 object-cover"/>
+            <video ref={aiVideoRef} autoPlay playsInline muted className="w-full rounded-xl bg-black max-h-64 object-cover" />
             <div className="flex gap-3 w-full">
-              <button onClick={()=>{ aiStreamRef.current?.getTracks().forEach(t=>t.stop()); setShowAICamera(false) }} className="flex-1 py-2 rounded-xl bg-[#111827] border border-[#1e293b] text-xs text-gray-400">Cancel</button>
-              <button onClick={captureAIPhoto} className="flex-1 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-xs font-bold flex items-center justify-center gap-1"><Camera size={12}/> Capture</button>
+              <button onClick={() => { aiStreamRef.current?.getTracks().forEach(t => t.stop()); setShowAICamera(false) }} className="flex-1 py-2 rounded-xl bg-[#111827] border border-[#1e293b] text-xs text-gray-400">Cancel</button>
+              <button onClick={captureAIPhoto} className="flex-1 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-xs font-bold flex items-center justify-center gap-1"><Camera size={12} /> Capture</button>
             </div>
           </div>
         </div>
@@ -1084,83 +1383,44 @@ export default function InternDashboard() {
   )
 }
 
-const CARD_DATA = {
-  Assigned:    [{ day:"Mon",v:3 },{ day:"Tue",v:5 },{ day:"Wed",v:4 },{ day:"Thu",v:7 },{ day:"Fri",v:6 },{ day:"Sat",v:9 },{ day:"Sun",v:8 }],
-  Completed:   [{ day:"Mon",v:2 },{ day:"Tue",v:4 },{ day:"Wed",v:6 },{ day:"Thu",v:5 },{ day:"Fri",v:8 },{ day:"Sat",v:9 },{ day:"Sun",v:10 }],
-  Attendance:  [{ day:"Mon",v:70 },{ day:"Tue",v:80 },{ day:"Wed",v:88 },{ day:"Thu",v:75 },{ day:"Fri",v:92 },{ day:"Sat",v:85 },{ day:"Sun",v:95 }],
-  Performance: [{ day:"Mon",v:4 },{ day:"Tue",v:5 },{ day:"Wed",v:6 },{ day:"Thu",v:7 },{ day:"Fri",v:7 },{ day:"Sat",v:8 },{ day:"Sun",v:9 }],
-}
-
-function StatCard({ title, value, trend, trendType, subtitle, color1, color2, onClick }) {
+function SummaryCard({ title, value, icon, subtitle, borderColor, isProgressCard, progressPct, onClick }) {
   const [hovered, setHovered] = useState(false)
-  const data = CARD_DATA[title] || CARD_DATA.Assigned
-  const gradId = `sc-${title.replace(/\s+/g,"")}`
-  const unit = title === "Attendance" ? "%" : ""
-
   return (
     <div
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="relative overflow-hidden bg-[#0f172a] border rounded-3xl flex flex-col cursor-pointer transition-all duration-300 shadow-lg"
-      style={{
-        minHeight:"160px",
-        borderColor: hovered ? color2 : "#1e293b",
-        boxShadow: hovered ? `0 0 22px ${color2}40` : "none",
-        transform: hovered ? "translateY(-3px)" : "translateY(0)",
-      }}
+      className={`relative overflow-hidden bg-[#0f172a] border border-[#1e293b] rounded-2xl p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 shadow-md ${borderColor || "hover:border-cyan-500/40"} ${hovered ? "transform -translate-y-1 shadow-lg shadow-black/40" : ""
+        }`}
+      style={{ minHeight: "135px" }}
     >
-      {/* subtle colour tint */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none transition-opacity duration-300"
-        style={{ background:`linear-gradient(160deg, ${color1}55, ${color2}22)`, opacity: hovered ? 0.22 : 0.10 }}/>
-
-      {/* TEXT */}
-      <div className="relative z-10 px-5 pt-4 pb-1 flex-shrink-0">
-        <p className="text-xs font-semibold tracking-wider uppercase transition-colors duration-200"
-          style={{ color: hovered ? color2 : "#94a3b8" }}>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold tracking-wider uppercase text-gray-400">
           {title}
-        </p>
-        <h3
-          className="text-3xl font-extrabold leading-tight mt-1 transition-all duration-200"
-          style={{
-            color: hovered ? "#ffffff" : "#f1f5f9",
-            textShadow: hovered ? `0 0 20px ${color2}99` : "none",
-          }}
-        >
-          {value}
-        </h3>
-        <div className="flex items-center gap-1.5 mt-1 text-xs" style={{ color: trendType==="up" ? "#4ade80" : "#f87171" }}>
-          {trendType === "up" ? <ArrowUp size={14}/> : <ArrowDown size={14}/>}
-          <span className="font-semibold">{trend}</span>
-          <span className="text-gray-400 ml-0.5">{subtitle}</span>
+        </span>
+        <div className="w-8 h-8 rounded-lg bg-[#111827] border border-[#1e293b] flex items-center justify-center">
+          {icon}
         </div>
       </div>
 
-      {/* REAL CHART */}
-      <div className="relative z-10 w-full min-w-0" style={{ height:"90px" }}>
-        <ClientChart height={90} minHeight={85}>
-          <AreaChart data={data} margin={{ top:8, right:12, bottom:0, left:-20 }}>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color2} stopOpacity={hovered ? 0.7 : 0.5}/>
-                <stop offset="100%" stopColor={color1} stopOpacity={0.03}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false}/>
-            <XAxis dataKey="day" stroke="#334155" tick={{ fill:"#64748b", fontSize:10 }} tickLine={false} axisLine={false}/>
-            <YAxis stroke="#334155" tick={{ fill:"#64748b", fontSize:10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}${unit}`}/>
-            <Tooltip
-              contentStyle={{ backgroundColor:"#0f172a", border:`1px solid ${color2}55`, borderRadius:"10px", padding:"6px 10px" }}
-              labelStyle={{ color:"#94a3b8", fontSize:"11px", marginBottom:"2px" }}
-              itemStyle={{ color:color2, fontSize:"12px", fontWeight:"bold" }}
-              formatter={v => [`${v}${unit}`, title]}
-              cursor={{ stroke:color2, strokeWidth:1, strokeDasharray:"4 2" }}
-            />
-            <Area type="monotone" dataKey="v" stroke={color2} strokeWidth={2.5} fill={`url(#${gradId})`}
-              dot={false} activeDot={{ r:4, fill:color2, stroke:"#0f172a", strokeWidth:2 }}/>
-          </AreaChart>
-        </ClientChart>
+      <div className="my-1.5">
+        <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          {value}
+        </h3>
       </div>
+
+      {isProgressCard ? (
+        <div className="w-full bg-[#1e293b] rounded-full h-1.5 overflow-hidden mt-1">
+          <div
+            className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-500"
+            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+          />
+        </div>
+      ) : (
+        <div className="text-[11px] text-gray-400 truncate">
+          {subtitle}
+        </div>
+      )}
     </div>
   )
 }
@@ -1169,7 +1429,7 @@ function Legend({ color, title, value }) {
   return (
     <div className="flex items-center justify-between gap-6">
       <div className="flex items-center gap-2.5">
-        <div className={`w-3.5 h-3.5 rounded-full ${color}`}/>
+        <div className={`w-3.5 h-3.5 rounded-full ${color}`} />
         <span className="text-sm text-gray-300 font-medium">{title}</span>
       </div>
       <span className="text-purple-400 text-sm font-bold">{value}</span>
@@ -1202,7 +1462,7 @@ function DeadlineItem({ title, days, onClick }) {
     <div onClick={onClick} className="flex items-center gap-3.5 bg-[#111827] rounded-2xl px-4 py-3 cursor-pointer hover:bg-[#1e293b] transition border border-[#1e293b]/70 shadow-sm">
       <h3 className="text-sm font-medium text-white whitespace-nowrap">{title}</h3>
       <div className="flex-1 h-2 bg-[#1e293b] rounded-full overflow-hidden">
-        <div className={`h-full ${barColor}`} style={{ width:`${percent}%` }}/>
+        <div className={`h-full ${barColor}`} style={{ width: `${percent}%` }} />
       </div>
       <div className={`text-xs font-semibold whitespace-nowrap ${textColor}`}>{days}</div>
     </div>

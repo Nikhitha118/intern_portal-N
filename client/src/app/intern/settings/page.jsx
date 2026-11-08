@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react"
 import InternSidebar from "../../../lib/internSidebar"
 import { Camera, Save, LogOut, Bell, Shield, Eye, Palette, User, Trash2, Lock, Moon, Sun, Plus, X, FolderOpen, Check, Sparkles, Globe } from "lucide-react"
-import { api, getUser, getInternUser, setInternPhoto, getInternPhoto, DEFAULT_INTERN_AVATAR, clearUserSession, resolveInternName } from "../../../lib/api"
+import { api, getUser, getInternUser, setInternPhoto, getInternPhoto, DEFAULT_INTERN_AVATAR, clearUserSession, resolveInternName, fetchInternProgress, getStoredInternProgress } from "../../../lib/api"
 import { useRouter } from "next/navigation"
 import { useTheme } from "../../../lib/theme"
 import { useTranslation, LANGUAGES } from "../../../lib/i18n"
@@ -51,6 +51,25 @@ export default function SettingsPage() {
   const [twoFA, setTwoFA] = useState(false)
   const [pwMsg, setPwMsg] = useState("")
   const [pwErr, setPwErr] = useState("")
+  const [internProgress, setInternProgress] = useState(0)
+
+  useEffect(() => {
+    try {
+      const u = getInternUser()
+      if (u && (u.id || u._id)) {
+        const uid = u.id || u._id
+        const cached = getStoredInternProgress(uid)
+        if (cached && typeof cached.overallProgress === "number") {
+          setInternProgress(cached.overallProgress)
+        }
+        fetchInternProgress(uid).then(fresh => {
+          if (fresh && typeof fresh.overallProgress === "number") {
+            setInternProgress(fresh.overallProgress)
+          }
+        }).catch(() => {})
+      }
+    } catch {}
+  }, [])
 
   useEffect(() => {
     try {
@@ -338,7 +357,7 @@ export default function SettingsPage() {
                 {t("Dashboard")} &bull; {t("Tasks")} &bull; {t("Journals")} &bull; {t("Settings")}
               </p>
               <p className="text-xs text-gray-400">
-                {t("Internship Progress")}: <span className="font-bold text-cyan-400">75%</span> &bull; 28 {t("Days Left")}
+                {t("Internship Progress")}: <span className="font-bold text-cyan-400">{internProgress}%</span> &bull; {internProgress === 100 ? t("Completed") || "Completed" : t("Active Sprint") || "Active"}
               </p>
             </div>
           </div>

@@ -21,23 +21,37 @@ import {
 import RoleAssessmentModal from "../../../components/RoleAssessmentModal"
 
 const TASKS = [
-  { id: 1, name: "Build Login API", cat: "Backend", due: "May 25, 2025", pri: "High", status: "In Progress", pct: 70, bg: "#7C3AED", desc: "Develop a secure login API with JWT authentication using Node.js and Express." },
-  { id: 2, name: "Create Dashboard UI", cat: "Frontend", due: "May 30, 2025", pri: "High", status: "Submitted", pct: 100, bg: "#06B6D4", desc: "Design and implement the main dashboard UI with all components." },
-  { id: 3, name: "Integrate MongoDB", cat: "Database", due: "Jun 05, 2025", pri: "Medium", status: "In Progress", pct: 60, bg: "#10b981", desc: "Set up MongoDB connection and integrate with the backend APIs." },
-  { id: 4, name: "Write API Documentation", cat: "Documentation", due: "Jun 08, 2025", pri: "Low", status: "Pending", pct: 20, bg: "#f59e0b", desc: "Write comprehensive API documentation using Swagger/OpenAPI." },
+  { id: 1, name: "Build Login API", cat: "Backend", due: "May 25, 2025", pri: "High", status: "Pending", pct: 0, bg: "#7C3AED", desc: "Develop a secure login API with JWT authentication using Node.js and Express." },
+  { id: 2, name: "Create Dashboard UI", cat: "Frontend", due: "May 30, 2025", pri: "High", status: "Pending", pct: 0, bg: "#06B6D4", desc: "Design and implement the main dashboard UI with all components." },
+  { id: 3, name: "Integrate MongoDB", cat: "Database", due: "Jun 05, 2025", pri: "Medium", status: "Pending", pct: 0, bg: "#10b981", desc: "Set up MongoDB connection and integrate with the backend APIs." },
+  { id: 4, name: "Write API Documentation", cat: "Documentation", due: "Jun 08, 2025", pri: "Low", status: "Pending", pct: 0, bg: "#f59e0b", desc: "Write comprehensive API documentation using Swagger/OpenAPI." },
   { id: 5, name: "Deploy Application", cat: "DevOps", due: "Jun 12, 2025", pri: "High", status: "Pending", pct: 0, bg: "#ec4899", desc: "Deploy the application to AWS EC2 with CI/CD pipeline setup." },
   { id: 6, name: "Unit Testing", cat: "Testing", due: "Jun 15, 2025", pri: "Medium", status: "Pending", pct: 0, bg: "#8b5cf6", desc: "Write unit tests for all API endpoints using Jest and Supertest." },
 ]
 
 const PRI = { High: { c: "#ef4444", bg: "rgba(239,68,68,0.15)" }, Medium: { c: "#f97316", bg: "rgba(249,115,22,0.15)" }, Low: { c: "#22c55e", bg: "rgba(34,197,94,0.15)" } }
-const STA = { "In Progress": { c: "#06B6D4", bg: "rgba(6,182,212,0.15)" }, Completed: { c: "#22c55e", bg: "rgba(34,197,94,0.15)" }, Pending: { c: "#ef4444", bg: "rgba(239,68,68,0.15)" }, Submitted: { c: "#3b82f6", bg: "rgba(59,130,246,0.15)" } }
+const STA = {
+  "In Progress": { c: "#06B6D4", bg: "rgba(6,182,212,0.15)" },
+  Completed: { c: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+  Approved: { c: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+  Pending: { c: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  Submitted: { c: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+  "Under Review": { c: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+  Rejected: { c: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+  "Needs Changes": { c: "#f97316", bg: "rgba(249,115,22,0.15)" },
+}
 function CatIcon({ cat, color, size = 14 }) {
   if (cat === "Backend") return <span className="text-[10px] font-bold font-mono" style={{ color }}>&lt;/&gt;</span>
   const Icon = TASK_CAT_ICONS[cat] || ClipboardList
   return <Icon size={size} color={color} strokeWidth={2} />
 }
 const CAT_COLORS = { Backend: "#7C3AED", Frontend: "#06B6D4", Database: "#10b981", Documentation: "#f59e0b", DevOps: "#ec4899", Testing: "#8b5cf6", "Full Stack": "#6366F1", "Data Structures": "#ec4899", Algorithms: "#a855f7", Security: "#f43f5e" }
-const KCOL = { Pending: { b: "rgba(239,68,68,0.3)", bg: "rgba(239,68,68,0.05)", d: "#ef4444" }, "In Progress": { b: "rgba(6,182,212,0.3)", bg: "rgba(6,182,212,0.05)", d: "#06B6D4" }, Completed: { b: "rgba(34,197,94,0.3)", bg: "rgba(34,197,94,0.05)", d: "#22c55e" }, Submitted: { b: "rgba(59,130,246,0.3)", bg: "rgba(59,130,246,0.05)", d: "#3b82f6" } }
+const KCOL = {
+  Pending: { b: "rgba(245,158,11,0.3)", bg: "rgba(245,158,11,0.05)", d: "#f59e0b" },
+  "In Progress": { b: "rgba(6,182,212,0.3)", bg: "rgba(6,182,212,0.05)", d: "#06B6D4" },
+  Submitted: { b: "rgba(59,130,246,0.3)", bg: "rgba(59,130,246,0.05)", d: "#3b82f6" },
+  Completed: { b: "rgba(34,197,94,0.3)", bg: "rgba(34,197,94,0.05)", d: "#22c55e" }
+}
 
 // Coding exam questions per category
 const EXAM_QUESTIONS = {
@@ -400,8 +414,8 @@ export default function TasksPage() {
     }
   }, [sel?.name])
 
-  // Function to load tasks aligned with the intern's assigned role
-  const syncRoleAndTasks = () => {
+  // Function to load tasks aligned with the intern's assigned role and MongoDB records
+  const syncRoleAndTasks = async () => {
     const role = getAssignedRole()
     setAssignedRole(role)
     try {
@@ -409,6 +423,43 @@ export default function TasksPage() {
       setAssessmentResult(res)
     } catch { }
 
+    const u = getInternUser()
+    const uid = u?.id || u?._id
+
+    // 1. Fetch real tasks from MongoDB Atlas
+    if (uid) {
+      try {
+        const apiRes = await api.getTasks(uid)
+        console.log("[TASKS_SYNC_DEBUG]", { uid, ok: apiRes?.ok, count: Array.isArray(apiRes?.data) ? apiRes.data.length : null, data: apiRes?.data })
+        if (apiRes.ok && Array.isArray(apiRes.data) && apiRes.data.length > 0) {
+          const loaded = apiRes.data.map(t => ({
+            id: t._id || t.id,
+            _id: t._id || t.id,
+            name: t.title || t.name,
+            cat: t.category || t.cat || "Backend",
+            due: t.dueDate || t.due || "TBD",
+            pri: t.priority || t.pri || "Medium",
+            status: t.status || "Pending",
+            pct: t.progress ?? t.pct ?? 0,
+            desc: t.description || t.desc || "",
+            bg: CAT_COLORS[t.category || t.cat] || "#7C3AED",
+            submission: t.submission,
+            submittedFile: t.submittedFile,
+            reviewComments: t.reviewComments || t.comments || "",
+            reviewStatus: t.reviewStatus || ""
+          }))
+          setTasks(loaded)
+          setSel(prev => {
+            if (!prev) return loaded[0]
+            const found = loaded.find(x => String(x.id) === String(prev.id) || String(x.name) === String(prev.name))
+            return found || loaded[0]
+          })
+          return
+        }
+      } catch { }
+    }
+
+    // 2. Fallback to role-specific tasks
     const roleTasks = getTasksForRole(role)
 
     // Load mentor-assigned tasks
@@ -459,34 +510,24 @@ export default function TasksPage() {
     }
 
     window.addEventListener("intern_role_updated", onRoleUpdated)
+    window.addEventListener("intern_tasks_updated", onRoleUpdated)
+    window.addEventListener("intern_progress_updated", onRoleUpdated)
     window.addEventListener("storage", onRoleUpdated)
     return () => {
       window.removeEventListener("intern_role_updated", onRoleUpdated)
+      window.removeEventListener("intern_tasks_updated", onRoleUpdated)
+      window.removeEventListener("intern_progress_updated", onRoleUpdated)
       window.removeEventListener("storage", onRoleUpdated)
     }
   }, [])
 
-  // Poll for mentor-assigned tasks every 2s as fallback
+  // Poll for mentor-assigned tasks and fresh backend tasks every 3s as fallback
   useEffect(() => {
     const applyMentorTasks = () => {
-      try {
-        const mentorTasks = JSON.parse(localStorage.getItem("mentorAssignedTasks") || "[]")
-        if (!mentorTasks.length) return
-        setTasks(p => {
-          const existingIds = new Set(p.map(t => String(t.id)))
-          const newOnes = mentorTasks
-            .filter(t => !existingIds.has(String(t.id)))
-            .map(t => ({
-              ...t,
-              bg: CAT_COLORS[t.cat] || t.bg || "#7C3AED",
-              desc: t.desc || `Assigned by mentor. Complete with proper validation and error handling.`
-            }))
-          return newOnes.length ? [...newOnes, ...p] : p
-        })
-      } catch { }
+      syncRoleAndTasks()
     }
 
-    const pollId = setInterval(applyMentorTasks, 2000)
+    const pollId = setInterval(applyMentorTasks, 3000)
     return () => clearInterval(pollId)
   }, [])
 
@@ -499,8 +540,13 @@ export default function TasksPage() {
     setAssessmentModalOpen(false)
   }
 
-  const filtered = tasks.filter(t => (filter === "All" || t.status === filter) && t.name.toLowerCase().includes(search.toLowerCase()))
-  const kanban = { Pending: tasks.filter(t => t.status === "Pending"), "In Progress": tasks.filter(t => t.status === "In Progress"), Completed: tasks.filter(t => t.status === "Completed"), Submitted: tasks.filter(t => t.status === "Submitted") }
+  const filtered = tasks.filter(t => (filter === "All" || t.status === filter) && (t.name || t.title || "").toLowerCase().includes(search.toLowerCase()))
+  const kanban = {
+    Pending: tasks.filter(t => ["pending", "todo", "", "none", "rejected", "needs changes"].includes(String(t.status || "").toLowerCase())),
+    "In Progress": tasks.filter(t => String(t.status || "").toLowerCase() === "in progress"),
+    Submitted: tasks.filter(t => ["submitted", "under review", "pending review"].includes(String(t.status || "").toLowerCase())),
+    Completed: tasks.filter(t => ["completed", "approved"].includes(String(t.status || "").toLowerCase()))
+  }
 
   const openExam = (task) => {
     const q = EXAM_QUESTIONS[task.cat] || EXAM_QUESTIONS.Backend
@@ -684,7 +730,7 @@ export default function TasksPage() {
 
           {/* FILTER TABS */}
           <div className="flex items-center gap-2 flex-wrap">
-            {["All", "Pending", "In Progress", "Completed"].map(f => (
+            {["All", "Pending", "In Progress", "Submitted", "Completed"].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -731,14 +777,14 @@ export default function TasksPage() {
                             <CatIcon cat={t.cat} color={t.bg} size={18} />
                           </div>
                           <div>
-                            <span className="text-sm font-semibold text-white group-hover:text-cyan-300 transition">{t.name}</span>
-                            <p className="text-xs text-gray-400 line-clamp-1 max-w-[280px]">{t.desc}</p>
+                            <span className="text-sm font-semibold text-white group-hover:text-cyan-300 transition">{t.name || t.title}</span>
+                            <p className="text-xs text-gray-400 line-clamp-1 max-w-[280px]">{t.desc || t.description}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-xs font-medium text-gray-300">{t.cat}</td>
+                      <td className="px-4 py-4 text-xs font-medium text-gray-300">{t.cat || t.category}</td>
                       <td className="px-4 py-4 text-xs text-gray-300">
-                        <span className="inline-flex items-center gap-1.5"><Calendar size={13} className="text-gray-400" /> {t.due}</span>
+                        <span className="inline-flex items-center gap-1.5"><Calendar size={13} className="text-gray-400" /> {t.due || t.dueDate}</span>
                       </td>
                       <td className="px-4 py-4">
                         <span className="px-2.5 py-1 rounded-lg text-xs font-semibold inline-block" style={{ color: PRI[t.pri]?.c, background: PRI[t.pri]?.bg }}>
@@ -807,10 +853,10 @@ export default function TasksPage() {
                   <div className="flex-1 space-y-3 overflow-y-auto max-h-[500px] pr-1">
                     {items.map((t, i) => (
                       <div key={i} onClick={() => setSel(t)} className="bg-[#0f172a] rounded-xl p-3.5 cursor-pointer hover:bg-[#1e293b]/70 border border-[#1e293b] hover:border-cyan-500/40 transition shadow-md group">
-                        <p className="text-sm font-semibold text-white group-hover:text-cyan-300 transition mb-2 leading-snug">{t.name}</p>
-                        <p className="text-xs text-gray-400 line-clamp-2 mb-3 leading-relaxed">{t.desc}</p>
+                        <p className="text-sm font-semibold text-white group-hover:text-cyan-300 transition mb-2 leading-snug">{t.name || t.title}</p>
+                        <p className="text-xs text-gray-400 line-clamp-2 mb-3 leading-relaxed">{t.desc || t.description}</p>
                         <div className="flex items-center justify-between pt-2 border-t border-[#1e293b]/60">
-                          <span className="text-xs text-gray-400 flex items-center gap-1.5"><Calendar size={12} /> {t.due}</span>
+                          <span className="text-xs text-gray-400 flex items-center gap-1.5"><Calendar size={12} /> {t.due || t.dueDate}</span>
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ color: PRI[t.pri]?.c, background: PRI[t.pri]?.bg }}>{t.pri}</span>
                         </div>
                       </div>
@@ -847,17 +893,17 @@ export default function TasksPage() {
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
                   <div className="flex items-start gap-3.5 pb-4 border-b border-[#1e293b]">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md" style={{ background: sel.bg + "26", color: sel.bg }}>
-                      <CatIcon cat={sel.cat} color={sel.bg} size={22} />
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md" style={{ background: (sel.bg || "#7C3AED") + "26", color: sel.bg || "#7C3AED" }}>
+                      <CatIcon cat={sel.cat || sel.category} color={sel.bg || "#7C3AED"} size={22} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-base font-bold text-white leading-snug">{sel.name}</p>
+                      <p className="text-base font-bold text-white leading-snug">{sel.name || sel.title}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         <span className="text-xs px-2.5 py-0.5 rounded-md font-semibold" style={{ color: PRI[sel.pri]?.c, background: PRI[sel.pri]?.bg }}>
-                          {sel.pri} Priority
+                          {sel.pri || "Medium"} Priority
                         </span>
                         <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Calendar size={13} /> Due {sel.due}
+                          <Calendar size={13} /> Due {sel.due || sel.dueDate}
                         </span>
                       </div>
                     </div>
@@ -869,7 +915,7 @@ export default function TasksPage() {
                   <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#111827] border border-[#1e293b]">
                     <div>
                       <span className="text-xs text-gray-400 block mb-1">Category</span>
-                      <span className="text-sm font-semibold text-white">{sel.cat}</span>
+                      <span className="text-sm font-semibold text-white">{sel.cat || sel.category}</span>
                     </div>
                     <div>
                       <span className="text-xs text-gray-400 block mb-1">Due Date</span>
@@ -951,49 +997,168 @@ export default function TasksPage() {
                       ▶ Take Interactive Task Coding Exam
                     </button>
 
-                    <button onClick={async () => {
-                      if (!submitted) { alert("Please upload your file first before submitting."); return }
-                      const user = getInternUser()
-                      let fileData = null
-                      let fileMime = null
-                      if (submitted.file) {
-                        try {
-                          fileData = await new Promise((resolve, reject) => {
-                            const r = new FileReader()
-                            r.onload = () => resolve(r.result)
-                            r.onerror = reject
-                            r.readAsDataURL(submitted.file)
+                    {sel?.status === "Completed" || sel?.status === "Approved" ? (
+                      <div className="w-full py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-sm font-semibold text-emerald-300 text-center flex items-center justify-center gap-2 shadow-lg">
+                        <CheckCircle2 size={16} className="text-emerald-400" /> Task Completed & Approved by Mentor
+                      </div>
+                    ) : sel?.status === "Submitted" ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="w-full py-3 rounded-xl bg-blue-500/15 border border-blue-500/40 text-sm font-semibold text-blue-300 text-center flex items-center justify-center gap-2 shadow-lg">
+                          <Clock size={16} className="text-blue-400" /> Solution Submitted · Awaiting Mentor Review
+                        </div>
+                        {submitted && (
+                          <button onClick={async () => {
+                            const user = getInternUser()
+                            let fileData = null
+                            let fileMime = null
+                            if (submitted.file) {
+                              try {
+                                fileData = await new Promise((resolve, reject) => {
+                                  const r = new FileReader()
+                                  r.onload = () => resolve(r.result)
+                                  r.onerror = reject
+                                  r.readAsDataURL(submitted.file)
+                                })
+                                fileMime = submitted.file.type || ""
+                              } catch { }
+                            }
+                            const taskId = sel.id || sel._id
+                            await api.submitTask(taskId, {
+                              fileName: submitted.name,
+                              fileSize: submitted.size,
+                              fileData,
+                              fileMime,
+                              notes: sel.desc || "",
+                              userId: user.id || user._id,
+                              userName: user.fullName || "Intern",
+                              taskTitle: sel.name || sel.title
+                            })
+                            appendSubmission({
+                              intern: user.fullName || "Intern",
+                              internUserId: user.id,
+                              task: sel.name,
+                              file: submitted.name,
+                              fileSize: submitted.size,
+                              fileData,
+                              fileMime,
+                              submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+                              status: "Pending Review",
+                              comments: "",
+                            })
+                            await fetchInternProgress(user.id || user._id)
+                            window.dispatchEvent(new Event("intern_tasks_updated"))
+                            window.dispatchEvent(new Event("storage"))
+                            alert("Revised solution submitted successfully!")
+                          }} className="w-full py-2 rounded-xl bg-[#1e293b] border border-blue-500/40 text-xs font-semibold text-blue-300 hover:text-white transition flex items-center justify-center gap-1.5 cursor-pointer">
+                            <Upload size={13} /> Update / Resubmit Solution
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {(sel?.status === "Rejected" || sel?.status === "Needs Changes") && (
+                          <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-xs text-red-200">
+                            <p className="font-semibold text-red-300 flex items-center gap-1.5 mb-1">
+                              <AlertCircle size={14} className="text-red-400" /> Mentor Requested Changes
+                            </p>
+                            <p className="text-gray-300">{sel.reviewComments || taskReview?.comments || "Please review code requirements and upload a corrected solution."}</p>
+                          </div>
+                        )}
+                        <button onClick={async () => {
+                          if (!submitted) { alert("Please upload your file first before submitting."); return }
+                          const user = getInternUser()
+                          let fileData = null
+                          let fileMime = null
+                          if (submitted.file) {
+                            try {
+                              fileData = await new Promise((resolve, reject) => {
+                                const r = new FileReader()
+                                r.onload = () => resolve(r.result)
+                                r.onerror = reject
+                                r.readAsDataURL(submitted.file)
+                              })
+                              fileMime = submitted.file.type || ""
+                            } catch { }
+                          }
+
+                          // Call real backend API to persist in MongoDB Atlas
+                          const taskId = sel.id || sel._id
+                          const uid = user.id || user._id
+                          await api.submitTask(taskId, {
+                            fileName: submitted.name,
+                            fileSize: submitted.size,
+                            fileData,
+                            fileMime,
+                            notes: sel.desc || "",
+                            userId: uid,
+                            userName: user.fullName || "Intern",
+                            taskTitle: sel.name || sel.title
                           })
-                          fileMime = submitted.file.type || ""
-                        } catch { }
-                      }
-                      const sub = appendSubmission({
-                        intern: user.fullName || "Intern",
-                        internUserId: user.id,
-                        task: sel.name,
-                        file: submitted.name,
-                        fileSize: submitted.size,
-                        fileData,
-                        fileMime,
-                        submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
-                        status: "Pending Review",
-                        comments: "",
-                      })
-                      setTaskReview(sub)
-                      setTasks(p => p.map(t => t.id === sel.id ? { ...t, status: "Submitted", pct: 100 } : t))
-                      setSel(p => ({ ...p, status: "Submitted", pct: 100 }))
-                    }} className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-bold text-white shadow-lg cursor-pointer transition hover:opacity-95">
-                      Submit Solution to Mentor
-                    </button>
+
+                          const sub = appendSubmission({
+                            intern: user.fullName || "Intern",
+                            internUserId: uid,
+                            task: sel.name,
+                            file: submitted.name,
+                            fileSize: submitted.size,
+                            fileData,
+                            fileMime,
+                            submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+                            status: "Pending Review",
+                            comments: "",
+                          })
+                          setTaskReview(sub)
+                          setTasks(p => p.map(t => (t.id === sel.id || t._id === sel.id || t.name === sel.name) ? { ...t, status: "Submitted", pct: 100 } : t))
+                          setSel(p => ({ ...p, status: "Submitted", pct: 100 }))
+
+                          // Instantly trigger progress update across dashboard and sidebar
+                          await fetchInternProgress(uid)
+                          window.dispatchEvent(new Event("intern_tasks_updated"))
+                          window.dispatchEvent(new Event("storage"))
+                        }} className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-bold text-white shadow-lg cursor-pointer transition hover:opacity-95">
+                          {sel?.status === "Rejected" ? "Resubmit Solution to Mentor" : "Submit Solution to Mentor"}
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Mentor evaluation status */}
-                  {(taskReview || sel?.status === "Submitted") && (
+                  {(taskReview || sel?.status === "Submitted" || sel?.status === "Completed" || sel?.status === "Rejected") && (
                     <div className="p-4 rounded-xl border border-[#1e293b] bg-[#111827]">
                       <p className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5">
                         <Star size={14} className="text-purple-400" /> Mentor Evaluation Status
                       </p>
-                      {(!taskReview || taskReview.status === "Pending Review") ? (
+                      {sel?.status === "Completed" || taskReview?.status === "Approved" ? (
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 size={18} className="text-green-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-green-300">Approved & Completed</p>
+                            <p className="text-xs text-gray-300 mt-1 line-clamp-3 leading-relaxed">{sel.reviewComments || taskReview?.comments || "Mentor reviewed and approved your submission."}</p>
+                            <button
+                              type="button"
+                              onClick={() => router.push("/intern/evaluation")}
+                              className="mt-2.5 text-xs text-purple-400 flex items-center gap-1 hover:text-purple-300 font-medium"
+                            >
+                              <ExternalLink size={12} /> View full evaluation
+                            </button>
+                          </div>
+                        </div>
+                      ) : sel?.status === "Rejected" || taskReview?.status === "Rejected" || taskReview?.status === "Needs Changes" ? (
+                        <div className="flex items-start gap-3">
+                          <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-red-300">Changes Requested / Rejected</p>
+                            <p className="text-xs text-gray-300 mt-1 line-clamp-3 leading-relaxed">{sel.reviewComments || taskReview?.comments || "Mentor reviewed and requested revisions."}</p>
+                            <button
+                              type="button"
+                              onClick={() => router.push("/intern/evaluation")}
+                              className="mt-2.5 text-xs text-red-400 flex items-center gap-1 hover:text-red-300 font-medium"
+                            >
+                              <ExternalLink size={12} /> View mentor feedback
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
                         <div className="flex items-start gap-3">
                           <Clock size={18} className="text-amber-400 flex-shrink-0 mt-0.5" />
                           <div>
@@ -1007,21 +1172,6 @@ export default function TasksPage() {
                               className="mt-2.5 text-xs text-cyan-400 flex items-center gap-1 hover:text-cyan-300 font-medium"
                             >
                               <ExternalLink size={12} /> Open Evaluation page
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start gap-3">
-                          <CheckCircle2 size={18} className="text-green-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-semibold text-green-300">{taskReview.status}</p>
-                            <p className="text-xs text-gray-300 mt-1 line-clamp-3 leading-relaxed">{taskReview.comments || "Mentor has reviewed your submission."}</p>
-                            <button
-                              type="button"
-                              onClick={() => router.push("/intern/evaluation")}
-                              className="mt-2.5 text-xs text-purple-400 flex items-center gap-1 hover:text-purple-300 font-medium"
-                            >
-                              <ExternalLink size={12} /> View full evaluation
                             </button>
                           </div>
                         </div>

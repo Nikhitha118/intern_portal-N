@@ -14,6 +14,7 @@ from intern.routes.journal_routes import intern_journal_bp
 from intern.routes.attendance_routes import intern_att_bp
 from intern.routes.calendar_routes import intern_cal_bp
 from intern.routes.settings_routes import intern_settings_bp
+from intern.routes.dashboard_routes import intern_dash_bp
 
 from mentor.routes.evaluation_routes import mentor_eval_bp
 from mentor.routes.task_routes import mentor_task_bp
@@ -27,11 +28,12 @@ from institution.routes.institution_routes import inst_bp
 
 app = Flask(__name__)
 
-# CORS (production safe for all origins including Vercel and localhost)
+# CORS (production safe for all origins including Vercel and localhost, cached preflight)
 CORS(app, resources={r"/*": {
     "origins": "*",
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
+    "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+    "max_age": 86400
 }})
 
 # Register blueprints
@@ -42,6 +44,7 @@ app.register_blueprint(oauth_bp, url_prefix="/oauth", name="oauth_root")
 app.register_blueprint(msg_bp, url_prefix="/messages")
 app.register_blueprint(mentor_list_bp, url_prefix="/mentors")
 
+app.register_blueprint(intern_dash_bp, url_prefix="/intern/dashboard")
 app.register_blueprint(intern_task_bp, url_prefix="/intern/tasks")
 app.register_blueprint(intern_journal_bp, url_prefix="/intern/journals")
 app.register_blueprint(intern_att_bp, url_prefix="/intern/attendance")

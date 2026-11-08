@@ -34,11 +34,14 @@ export const api = {
   changePassword: (b) => post("/auth/change-password", b),
 
   // ── INTERN — TASKS (/intern/tasks) ─────────────────────────────────────────
-  getTasks: (uid) => get(`/intern/tasks/${uid ? `?userId=${uid}` : ""}`),
+  getTasks: (uid) => get(`/intern/tasks${uid ? `?userId=${uid}` : ""}`),
+  getTaskSummary: (uid) => get(`/intern/tasks/summary${uid ? `?userId=${uid}` : ""}`),
+  getDashboardSummary: (uid) => get(`/intern/dashboard/summary${uid ? `?userId=${uid}` : ""}`),
   createTask: (b) => post("/intern/tasks/", b),
   updateTask: (id, b) => put(`/intern/tasks/${id}`, b),
   deleteTask: (id) => del(`/intern/tasks/${id}`),
   patchTask: (id, b) => patch(`/intern/tasks/${id}/status`, b),
+  submitTask: (id, b) => post(`/intern/tasks/${id}/submit`, b),
 
   // ── INTERN — JOURNALS (/intern/journals) ───────────────────────────────────
   getJournals: (uid) => get(`/intern/journals/${uid ? `?userId=${uid}` : ""}`),
@@ -52,6 +55,8 @@ export const api = {
   checkOut: (id, b) => patch(`/intern/attendance/checkout/${id}`, b),
   getAttendance: (uid) => get(`/intern/attendance/all${uid ? `?userId=${uid}` : ""}`),
   getStats: (uid) => get(`/intern/attendance/stats${uid ? `?userId=${uid}` : ""}`),
+  updateAttendance: (id, b) => patch(`/intern/attendance/${id}`, b),
+  deleteAttendance: (id) => del(`/intern/attendance/${id}`),
 
   // ── INTERN — CALENDAR (/intern/calendar) ───────────────────────────────────
   getEvents: (uid) => get(`/intern/calendar/all${uid ? `?userId=${uid}` : ""}`),
@@ -201,10 +206,13 @@ export function enrichUserCredentials(u) {
     name = ""
   }
 
+  const id = u.id || u._id || ""
   const photo = (typeof window !== "undefined" && localStorage.getItem("intern_user_photo")) || u.photo || DEFAULT_INTERN_AVATAR
 
   return {
     ...u,
+    id: id,
+    _id: id,
     fullName: name,
     name: name,
     photo: photo,
@@ -267,4 +275,130 @@ export function getInstitutionUser() {
     const u = JSON.parse(localStorage.getItem("user") || "{}")
     return u.role === "institution" ? u : {}
   } catch { return {} }
+}
+
+// ─── User-Specific Progress Calculator & Sync Helper ────────────────────────
+export async function fetchInternProgress(userId) {
+  if (!userId) {
+    return {
+      totalTasks: 0,
+      pendingTasks: 0,
+      inProgressTasks: 0,
+      submittedTasks: 0,
+      completedTasks: 0,
+      rejectedTasks: 0,
+      overallProgress: 0,
+      attendance: { total: 0, present: 0, percentage: 0 },
+      recentActivities: [],
+      upcomingDeadlines: []
+    }
+  }
+
+  try {
+    const res = await api.getDashboardSummary(userId)
+    if (res.ok && res.data) {
+      const d = res.data
+      let totalTasks = Number(d.totalTasks) || 0
+      let completedTasks = Number(d.completedTasks) || 0
+      let submittedTasks = Number(d.submittedTasks) || 0
+      let inProgressTasks = Number(d.inProgressTasks) || 0
+      let pendingTasks = Number(d.pendingTasks) || 0
+      let rejectedTasks = Number(d.rejectedTasks) || 0
+      let overallProgress = Math.min(100, Math.max(0, Number(d.overallProgress) || 0))
+
+      // If backend has 0 tasks, check local tasks saved for this user
+      if (totalTasks === 0 && typeof window !== "undefined") {
+        try {
+          const localTasks = JSON.parse(
+            localStorage.getItem(`tasks_${userId}`) ||
+            localStorage.getItem("tasks") ||
+            "[]"
+          )
+          if (Array.isArray(localTasks) && localTasks.length > 0) {
+            totalTasks = localTasks.length
+            completedTasks = localTasks.filter(t => t.status === "Completed" || t.pct === 100).length
+            submittedTasks = localTasks.filter(t => t.status === "Submitted" || t.status === "Pending Review").length
+            inProgressTasks = localTasks.filter(t => t.status === "In Progress" && (t.pct || t.progress || 0) < 100).length
+            pendingTasks = localTasks.filter(t => (t.status === "Pending" || !t.status) && (t.pct || t.progress || 0) < 100).length
+            rejectedTasks = localTasks.filter(t => t.status === "Rejected").length
+            overallProgress = Math.round((completedTasks / totalTasks) * 100)
+          }
+        } catch { }
+      }
+
+      const summary = {
+        totalTasks,
+        pendingTasks,
+        inProgressTasks,
+        submittedTasks,
+        completedTasks,
+        rejectedTasks,
+        overallProgress,
+        attendance: {
+          total: Number(d.attendance?.total) || 0,
+          present: Number(d.attendance?.present) || 0,
+          late: Number(d.attendance?.late) || 0,
+          absent: Number(d.attendance?.absent) || 0,
+          attended: Number(d.attendance?.attended) || 0,
+          percentage: Number(d.attendance?.percentage) || 0,
+        },
+        recentActivities: Array.isArray(d.recentActivities) ? d.recentActivities : [],
+        upcomingDeadlines: Array.isArray(d.upcomingDeadlines) ? d.upcomingDeadlines : [],
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`intern_progress_${userId}`, JSON.stringify(summary))
+        window.dispatchEvent(new CustomEvent("intern_progress_updated", { detail: summary }))
+      }
+      return summary
+    }
+  } catch { }
+
+  // Fallback to cached progress if offline
+  if (typeof window !== "undefined") {
+    try {
+      const cached = localStorage.getItem(`intern_progress_${userId}`)
+      if (cached) return JSON.parse(cached)
+    } catch { }
+  }
+
+  return {
+    totalTasks: 0,
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    completedTasks: 0,
+    overallProgress: 0,
+    attendance: { total: 0, present: 0, percentage: 0 },
+    recentActivities: [],
+    upcomingDeadlines: []
+  }
+}
+
+export function getStoredInternProgress(userId) {
+  if (typeof window === "undefined" || !userId) {
+    return {
+      totalTasks: 0,
+      pendingTasks: 0,
+      inProgressTasks: 0,
+      completedTasks: 0,
+      overallProgress: 0,
+      attendance: { total: 0, present: 0, percentage: 0 },
+      recentActivities: [],
+      upcomingDeadlines: []
+    }
+  }
+  try {
+    const raw = localStorage.getItem(`intern_progress_${userId}`)
+    if (raw) return JSON.parse(raw)
+  } catch { }
+  return {
+    totalTasks: 0,
+    pendingTasks: 0,
+    inProgressTasks: 0,
+    completedTasks: 0,
+    overallProgress: 0,
+    attendance: { total: 0, present: 0, percentage: 0 },
+    recentActivities: [],
+    upcomingDeadlines: []
+  }
 }

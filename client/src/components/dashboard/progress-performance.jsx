@@ -21,7 +21,7 @@ const data = [
   { name: "Sun", value: 95 },
 ]
 
-export function ProgressAndPerformance() {
+export function ProgressAndPerformance({ percent = 0 }) {
 
   return (
 
@@ -37,7 +37,7 @@ export function ProgressAndPerformance() {
 
         <div className="flex items-center justify-center">
 
-          <ProgressRing percent={75} />
+          <ProgressRing percent={percent} />
 
         </div>
 

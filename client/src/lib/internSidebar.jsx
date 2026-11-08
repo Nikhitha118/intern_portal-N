@@ -7,7 +7,7 @@ import {
   GraduationCap, ChevronDown, LogOut, UserPlus, Star, Sparkles,
   Menu, X
 } from "lucide-react"
-import { getInternUser, resolveInternName, getInternPhoto, DEFAULT_INTERN_AVATAR, clearUserSession } from "./api"
+import { getInternUser, resolveInternName, getInternPhoto, DEFAULT_INTERN_AVATAR, clearUserSession, fetchInternProgress, getStoredInternProgress } from "./api"
 import { useTranslation } from "./i18n"
 
 const menuItems = [
@@ -47,6 +47,47 @@ export default function InternSidebar({ active }) {
     }
     return DEFAULT_INTERN_AVATAR
   })
+  const [internProgress, setInternProgress] = useState(0)
+
+  useEffect(() => {
+    const syncProgress = async () => {
+      try {
+        const u = getInternUser()
+        if (u && (u.id || u._id)) {
+          const uid = u.id || u._id
+          const cached = getStoredInternProgress(uid)
+          if (cached && typeof cached.overallProgress === "number") {
+            setInternProgress(cached.overallProgress)
+          }
+          const fresh = await fetchInternProgress(uid)
+          if (fresh && typeof fresh.overallProgress === "number") {
+            setInternProgress(fresh.overallProgress)
+          }
+        } else {
+          setInternProgress(0)
+        }
+      } catch {
+        setInternProgress(0)
+      }
+    }
+
+    syncProgress()
+
+    const onProgressUpdated = (e) => {
+      if (e?.detail?.overallProgress !== undefined) {
+        setInternProgress(e.detail.overallProgress)
+      } else {
+        syncProgress()
+      }
+    }
+
+    window.addEventListener("intern_progress_updated", onProgressUpdated)
+    window.addEventListener("storage", syncProgress)
+    return () => {
+      window.removeEventListener("intern_progress_updated", onProgressUpdated)
+      window.removeEventListener("storage", syncProgress)
+    }
+  }, [])
 
   useEffect(() => {
     const load = () => {
@@ -184,18 +225,23 @@ export default function InternSidebar({ active }) {
           </div>
         )}
 
-        {/* Progress Bar */}
+        {/* Progress Bar (Dynamic from user records) */}
         <div className="mt-3 pt-2.5 border-t border-[#1e293b]/80">
           <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium mb-1">
             <span>{t("Internship Progress")}</span>
-            <span className="text-white font-bold text-sm">75%</span>
+            <span className="text-white font-bold text-sm">{internProgress}%</span>
           </div>
           <div className="w-full h-2 bg-[#1e293b] rounded-full overflow-hidden">
-            <div className="w-[75%] h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full" />
+            <div
+              className="h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(0, internProgress))}%` }}
+            />
           </div>
           <p className="text-[10px] text-gray-500 font-medium mt-1.5 flex items-center justify-between">
-            <span>28 {t("Days Left")}</span>
-            <span className="text-cyan-400/80 font-mono">Sprint 1</span>
+            <span>{internProgress === 100 ? "Completed!" : `${Math.round(internProgress)}% Completed`}</span>
+            <span className="text-cyan-400/80 font-mono">
+              {internProgress === 0 ? "Getting Started" : "Active Sprint"}
+            </span>
           </p>
         </div>
       </div>

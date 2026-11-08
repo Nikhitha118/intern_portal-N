@@ -699,6 +699,12 @@ function Submissions() {
       })
     } catch { }
 
+    try {
+      window.dispatchEvent(new Event("intern_tasks_updated"))
+      window.dispatchEvent(new Event("intern_progress_updated"))
+      window.dispatchEvent(new Event("storage"))
+    } catch { }
+
     setReviewModal(false); setReviewTarget(null); setReviewComment("")
   }
   return (
